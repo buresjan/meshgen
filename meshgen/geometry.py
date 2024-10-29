@@ -115,8 +115,9 @@ class Geometry:
 
 if __name__ == "__main__":
     # Example usage
-    geom = Geometry(name="tcpc_classic", resolution=5, split=5 * 128, num_processes=8, angle=0, h=0.01)
+    # geom = Geometry(name="tcpc_classic", resolution=5, split=5 * 128, num_processes=8, angle=0, h=0.01)
+    geom = Geometry(name="basic_junction", resolution=7, split=7 * 128, num_processes=4, offset=0.25, h=0.01)
     geom.generate_voxel_mesh()
-    geom.save_voxel_mesh("tcpc_voxel_mesh.npy")
-    geom.save_voxel_mesh_to_text("tcpc_voxel_mesh.txt")
+    # geom.save_voxel_mesh("tcpc_voxel_mesh.npy")
+    # geom.save_voxel_mesh_to_text("tcpc_voxel_mesh.txt")
     geom.visualize()
