@@ -2,3 +2,4 @@
 *.stl
 *_filled.geo
 *.npy
+*_mesh.txt
