@@ -1,11 +1,11 @@
-from voxels import voxelize_mesh
+from voxels import voxelize_mesh, generate_lbm_mesh, prepare_voxel_mesh_txt
 import os
 import numpy as np
 from utilities import array_to_textfile
 
 
 class Geometry:
-    def __init__(self, name, resolution, split=None, num_processes=1, output_dir="output", **kwargs):
+    def __init__(self, name, resolution, split=None, num_processes=1, output_dir="output", expected_in_outs=None,  **kwargs):
         """
         Initialize the Geometry class with the specified parameters.
 
@@ -32,6 +32,11 @@ class Geometry:
 
         # Store the voxelized geometry as an attribute
         self.voxelized_mesh = None
+
+        # Store the lbm geometry as an attribute
+        self.lbm_mesh = None
+
+        self.expected_in_outs = expected_in_outs
 
     def generate_voxel_mesh(self):
         """
@@ -69,8 +74,9 @@ class Geometry:
         filename (str, optional): Name of the text file to save the voxel mesh. Default is 'voxel_mesh.txt'.
         """
         if self.voxelized_mesh is not None:
+            output_mesh = prepare_voxel_mesh_txt(self.voxelized_mesh, expected_in_outs=self.expected_in_outs, num_type='int')
             file_path = os.path.join(self.output_dir, filename)
-            array_to_textfile(self.voxelized_mesh, file_path)
+            array_to_textfile(output_mesh, file_path)
             print(f"Voxel mesh saved as text to {file_path}")
         else:
             print("Error: No voxel mesh to save. Generate it first using 'generate_voxel_mesh'.")
@@ -112,12 +118,40 @@ class Geometry:
             print("Error: No voxel mesh available. Generate or load it first.")
             return None
 
+    def generate_lbm_mesh(self):
+        """
+        Generate the voxelized mesh for the geometry based on the .geo template.
+        """
+        print(f"Generating LBM mesh for geometry '{self.name}'...")
+
+        if self.voxelized_mesh is None:
+            self.lbm_mesh = None
+        else:
+            self.lbm_mesh = generate_lbm_mesh(self.voxelized_mesh, expected_in_outs=self.expected_in_outs)
+
+            print(f"LBM mesh generation complete. Shape: {self.lbm_mesh.shape}")
+
+
+    def save_lbm_mesh_to_text(self, filename="lbm_mesh.txt"):
+        """
+        Save the voxelized mesh as a text file in the specified output directory.
+
+        Parameters:
+        filename (str, optional): Name of the text file to save the voxel mesh. Default is 'voxel_mesh.txt'.
+        """
+        if self.voxelized_mesh is not None:
+            file_path = os.path.join(self.output_dir, filename)
+            array_to_textfile(self.lbm_mesh, file_path)
+            print(f"Voxel mesh saved as text to {file_path}")
+        else:
+            print("Error: No voxel mesh to save. Generate it first using 'generate_voxel_mesh'.")
+
 
 if __name__ == "__main__":
     # Example usage
-    # geom = Geometry(name="tcpc_classic", resolution=5, split=5 * 128, num_processes=8, angle=0, h=0.01)
-    geom = Geometry(name="basic_junction", resolution=7, split=7 * 128, num_processes=4, offset=0.25, h=0.01)
+    # geom = Geometry(name="tcpc_classic", resolution=3, split=3 * 128, num_processes=8, angle=0, h=0.01)
+    geom = Geometry(name="basic_junction", resolution=3, split=3 * 128, num_processes=4, offset=0.25, h=0.01, expected_in_outs={'W', 'E', 'S', 'N'})
     geom.generate_voxel_mesh()
-    # geom.save_voxel_mesh("tcpc_voxel_mesh.npy")
-    # geom.save_voxel_mesh_to_text("tcpc_voxel_mesh.txt")
-    geom.visualize()
+    geom.generate_lbm_mesh()
+    # geom.save_lbm_mesh_to_text()
+    geom.save_voxel_mesh_to_text()

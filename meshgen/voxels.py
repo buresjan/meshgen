@@ -1,7 +1,6 @@
 import trimesh as trm
 import numpy as np
 import scipy
-import utilities
 import mesher
 
 from tqdm import tqdm  # Import tqdm
@@ -47,7 +46,7 @@ def get_leading_direction(shape):
     return direction_idx
 
 
-def fill_extended_mesh(original_mesh, new_mesh):
+def fill_extended_mesh(original_mesh, new_mesh, num_type='bool', expected_in_outs=None):
     """
     Embed an original mesh into a new, larger mesh.
 
@@ -71,8 +70,10 @@ def fill_extended_mesh(original_mesh, new_mesh):
     direction_idx = get_leading_direction(original_mesh.shape)
     remaining_indices = [i for i in range(3) if i != direction_idx]
 
-    # Fill the original mesh inside its surface (assuming this is a custom function)
+    # Fill the original mesh inside its surface
     original_mesh = fill_mesh_inside_surface(original_mesh)
+
+    labeled_mesh = label_elements(original_mesh, expected_in_outs=expected_in_outs, num_type=num_type)
 
     # Embed the original mesh into the new mesh based on the leading direction
     if remaining_indices == [0, 1]:
@@ -85,7 +86,7 @@ def fill_extended_mesh(original_mesh, new_mesh):
             start_0 : start_0 + original_shape[0],
             start_1 : start_1 + original_shape[1],
             :,
-        ] = original_mesh
+        ] = labeled_mesh
 
     elif remaining_indices == [0, 2]:
         start_0 = (new_shape[0] - original_shape[0]) // 2
@@ -95,7 +96,7 @@ def fill_extended_mesh(original_mesh, new_mesh):
             start_0 : start_0 + original_shape[0],
             :,
             start_1 : start_1 + original_shape[2],
-        ] = original_mesh
+        ] = labeled_mesh
 
     else:
         start_0 = (new_shape[1] - original_shape[1]) // 2
@@ -105,7 +106,7 @@ def fill_extended_mesh(original_mesh, new_mesh):
             :,
             start_0 : start_0 + original_shape[1],
             start_1 : start_1 + original_shape[2],
-        ] = original_mesh
+        ] = labeled_mesh
 
     return new_mesh
 
@@ -153,7 +154,7 @@ def get_lbm_shape(original_shape):
     return new_shape
 
 
-def complete_mesh(original_mesh):
+def complete_mesh(original_mesh, num_type='bool', expected_in_outs=None):
     """
     Adjust an original mesh to make it suitable for Lattice Boltzmann Method (LBM) simulations.
 
@@ -176,8 +177,11 @@ def complete_mesh(original_mesh):
     # Create an empty mesh with the new shape
     empty_mesh = np.zeros(new_shape, dtype=bool)
 
+    if num_type == 'int':
+        empty_mesh = empty_mesh.astype(int)
+
     # Fill the original mesh into the new, empty mesh
-    new_mesh = fill_extended_mesh(original_mesh, empty_mesh)
+    new_mesh = fill_extended_mesh(original_mesh, empty_mesh, num_type=num_type, expected_in_outs=expected_in_outs)
 
     return new_mesh
 
@@ -620,10 +624,111 @@ def voxelize_mesh(name, res=1, split=None, num_processes=1, **kwargs):
         # Voxelize the mesh with splitting along the leading direction
         output = voxelize_with_splitting(boxed_mesh, voxel_size, split, num_processes=num_processes)
 
-    # Adjust the voxelized mesh for LBM simulations
-    # lbm_mesh = complete_mesh(output)
-
+    # return output
     return output
+
+
+def generate_lbm_mesh(original_mesh, expected_in_outs=None):
+    lbm_mesh = complete_mesh(original_mesh, num_type='int', expected_in_outs=expected_in_outs)
+
+    return lbm_mesh
+
+
+def label_elements(original_mesh, expected_in_outs=None, num_type='bool'):
+    if num_type == 'int':
+        original_mesh = original_mesh.astype(int)
+
+    labeled_mesh = original_mesh.copy()
+    labeled_mesh[labeled_mesh == 0] = 2
+
+    if expected_in_outs is None:
+        expected_in_outs = {}
+
+    # Apply the wall labeling conditions
+    if 'N' in expected_in_outs:
+        # North wall (z maximum)
+        labeled_mesh[:, :, -1][labeled_mesh[:, :, -1] == 1] = 11
+
+    if 'E' in expected_in_outs:
+        # East wall (x maximum)
+        labeled_mesh[-1, :, :][labeled_mesh[-1, :, :] == 1] = 12
+
+    if 'S' in expected_in_outs:
+        # South wall (z = 0)
+        labeled_mesh[:, :, 0][labeled_mesh[:, :, 0] == 1] = 13
+
+    if 'W' in expected_in_outs:
+        # West wall (x = 0)
+        labeled_mesh[0, :, :][labeled_mesh[0, :, :] == 1] = 14
+
+    if 'B' in expected_in_outs:
+        # Back wall (y maximum)
+        labeled_mesh[:, -1, :][labeled_mesh[:, -1, :] == 1] = 15
+
+    if 'F' in expected_in_outs:
+        # Front wall (y = 0)
+        labeled_mesh[:, 0, :][labeled_mesh[:, 0, :] == 1] = 16
+
+    return labeled_mesh
+
+
+def prepare_voxel_mesh_txt(mesh, expected_in_outs=None, num_type='int'):
+    output_mesh = label_elements(mesh, expected_in_outs=expected_in_outs, num_type=num_type)
+
+    if expected_in_outs is None:
+        # Don't want to do anything
+        expected_in_outs = {'N', 'E', 'S', 'W', 'B', 'F'}
+
+    # Calculate the difference
+    remaining_directions = {'N', 'E', 'S', 'W', 'B', 'F'} - expected_in_outs
+
+    final_mesh = output_mesh.copy()
+
+    for direction in remaining_directions:
+        final_mesh = add_additional_wall_layer(final_mesh, direction, 2)
+
+    return final_mesh
+
+def add_additional_wall_layer(mesh, direction, value=2):
+    # Determine the shape of the new layer based on the direction
+    if direction == 'N':  # z maximum
+        new_layer = np.full((mesh.shape[0], mesh.shape[1], 1), value)
+        return np.concatenate((mesh, new_layer), axis=2)
+    elif direction == 'E':  # x maximum
+        new_layer = np.full((1, mesh.shape[1], mesh.shape[2]), value)
+        return np.concatenate((mesh, new_layer), axis=0)
+    elif direction == 'S':  # z = 0
+        new_layer = np.full((mesh.shape[0], mesh.shape[1], 1), value)
+        return np.concatenate((new_layer, mesh), axis=2)
+    elif direction == 'W':  # x = 0
+        new_layer = np.full((1, mesh.shape[1], mesh.shape[2]), value)
+        return np.concatenate((new_layer, mesh), axis=0)
+    elif direction == 'B':  # y maximum
+        new_mesh = np.full((mesh.shape[0], mesh.shape[1] + 2, mesh.shape[2]), 2)
+
+        new_mesh[
+            :,
+            :-2,
+            :,
+        ] = mesh
+
+        print(new_mesh.shape)
+
+        return new_mesh
+    elif direction == 'F':  # y = 0
+        new_mesh = np.full((mesh.shape[0], mesh.shape[1] + 2, mesh.shape[2]), 2)
+
+        new_mesh[
+        :,
+        2:,
+        :,
+        ] = mesh
+
+        print(new_mesh.shape)
+
+        return new_mesh
+    else:
+        raise ValueError("Direction must be one of 'N', 'E', 'S', 'W', 'B', 'F'.")
 
 
 if __name__ == "__main__":
