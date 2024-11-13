@@ -101,7 +101,13 @@ class Geometry:
         """
         if self.voxelized_mesh is not None:
             from utilities import vis
-            vis(self.voxelized_mesh)
+            output_mesh = prepare_voxel_mesh_txt(self.voxelized_mesh, expected_in_outs=self.expected_in_outs,
+                                                 num_type='int')
+
+            boolean_array = (output_mesh == 3)
+            # vis(self.voxelized_mesh)
+            print(np.sum(boolean_array))
+            vis(boolean_array)
         else:
             print("Error: No voxel mesh to visualize. Generate or load it first.")
 
@@ -131,7 +137,6 @@ class Geometry:
 
             print(f"LBM mesh generation complete. Shape: {self.lbm_mesh.shape}")
 
-
     def save_lbm_mesh_to_text(self, filename="lbm_mesh.txt"):
         """
         Save the voxelized mesh as a text file in the specified output directory.
@@ -150,8 +155,12 @@ class Geometry:
 if __name__ == "__main__":
     # Example usage
     # geom = Geometry(name="tcpc_classic", resolution=3, split=3 * 128, num_processes=8, angle=0, h=0.01)
-    geom = Geometry(name="basic_junction", resolution=3, split=3 * 128, num_processes=4, offset=0.25, h=0.01, expected_in_outs={'W', 'E', 'S', 'N'})
+    # geom = Geometry(name="basic_junction", resolution=3, split=3 * 128, num_processes=4, offset=0.25, h=0.01, expected_in_outs={'W', 'E', 'S', 'N'})
+    # geom = Geometry(name="junction_1d", resolution=6, split=6 * 128, num_processes=4, offset=0.012, h=0.0005, expected_in_outs={'W', 'E', 'S', 'N'})
+    # geom = Geometry(name="junction_1d", resolution=6, split=6 * 128, num_processes=4, offset=0.0038, h=0.0005, expected_in_outs={'W', 'E', 'S', 'N'})
+    geom = Geometry(name="junction_1d", resolution=6, split=6 * 128, num_processes=4, offset=0.0015, h=0.0005, expected_in_outs={'W', 'E', 'S', 'N'})
     geom.generate_voxel_mesh()
     geom.generate_lbm_mesh()
     # geom.save_lbm_mesh_to_text()
     geom.save_voxel_mesh_to_text()
+    geom.visualize()

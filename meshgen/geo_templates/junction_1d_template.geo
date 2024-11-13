@@ -5,7 +5,7 @@ SetFactory("OpenCASCADE");
 // lower inflow should be 0.5 ms-1
 
 // Characteristic mesh length
-h = 0.0005;  // Suggested characteristic mesh length for balanced detail and computation cost
+h = DEFINE_H;  // Suggested characteristic mesh length for balanced detail and computation cost
 Mesh.CharacteristicLengthMin = h;
 Mesh.CharacteristicLengthMax = h;
 
