@@ -36,7 +36,7 @@ UPPER_RADIUS = 0.007; // Radius of the upper cylinder in meters
 MIDDLE_LENGTH = 0.17; // Length of the middle (horizontal) cylinder in meters
 MIDDLE_RADIUS = 0.011;  // Radius of the middle cylinder in meters
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////// First Cylinder - Lower /////////////////////////////////////////////
 ////////////////////////////////////////////// ID - 00001 ////////////////////////////////////////////////////////
 
@@ -145,7 +145,7 @@ Extrude { Surface{10001}; } Using Wire {10002}
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 // Union the three volumes and delete original parts
-BooleanUnion{ Volume{1}; Delete; }{ Volume{2, 3}; Delete; }
+BooleanUnion(4) = { Volume{1}; Delete; }{ Volume{2, 3}; Delete; };
 
 // Delete any remaining surfaces
 Recursive Delete {
@@ -160,3 +160,10 @@ Recursive Delete {
 Recursive Delete {
   Point{4, 5, 6, 7};
 }
+
+// Create a box domain that is used to slice potential "tilted" bottom part of the rotated conduit - we want it to be
+//  parallel with the ZY plane
+Box(5) = {-MIDDLE_LENGTH / 2.0, -MIDDLE_RADIUS, 0.015, MIDDLE_LENGTH, 2*MIDDLE_RADIUS, LOWER_LENGTH + UPPER_LENGTH - 0.03};
+
+// Intersect the box with the Volume {4}
+BooleanIntersection{ Volume{5}; Delete;}{ Volume{4}; Delete;}
