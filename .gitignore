@@ -3,4 +3,4 @@
 *_filled.geo
 *.npy
 *_mesh.txt
-/output
+/meshgen/output/
