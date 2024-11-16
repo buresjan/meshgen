@@ -5,7 +5,16 @@ from utilities import array_to_textfile
 
 
 class Geometry:
-    def __init__(self, name, resolution, split=None, num_processes=1, output_dir="output", expected_in_outs=None,  **kwargs):
+    def __init__(
+        self,
+        name,
+        resolution,
+        split=None,
+        num_processes=1,
+        output_dir="output",
+        expected_in_outs=None,
+        **kwargs,
+    ):
         """
         Initialize the Geometry class with the specified parameters.
 
@@ -48,7 +57,7 @@ class Geometry:
             res=self.resolution,
             split=self.split,
             num_processes=self.num_processes,
-            **self.kwargs
+            **self.kwargs,
         )
         print(f"Voxel mesh generation complete. Shape: {self.voxelized_mesh.shape}")
 
@@ -64,7 +73,9 @@ class Geometry:
             np.save(file_path, self.voxelized_mesh)
             print(f"Voxel mesh saved to {file_path}")
         else:
-            print("Error: No voxel mesh to save. Generate it first using 'generate_voxel_mesh'.")
+            print(
+                "Error: No voxel mesh to save. Generate it first using 'generate_voxel_mesh'."
+            )
 
     def save_voxel_mesh_to_text(self, filename="voxel_mesh.txt"):
         """
@@ -74,12 +85,18 @@ class Geometry:
         filename (str, optional): Name of the text file to save the voxel mesh. Default is 'voxel_mesh.txt'.
         """
         if self.voxelized_mesh is not None:
-            output_mesh = prepare_voxel_mesh_txt(self.voxelized_mesh, expected_in_outs=self.expected_in_outs, num_type='int')
+            output_mesh = prepare_voxel_mesh_txt(
+                self.voxelized_mesh,
+                expected_in_outs=self.expected_in_outs,
+                num_type="int",
+            )
             file_path = os.path.join(self.output_dir, filename)
             array_to_textfile(output_mesh, file_path)
             print(f"Voxel mesh saved as text to {file_path}")
         else:
-            print("Error: No voxel mesh to save. Generate it first using 'generate_voxel_mesh'.")
+            print(
+                "Error: No voxel mesh to save. Generate it first using 'generate_voxel_mesh'."
+            )
 
     def load_voxel_mesh(self, filename="voxel_mesh.npy"):
         """
@@ -101,13 +118,12 @@ class Geometry:
         """
         if self.voxelized_mesh is not None:
             from utilities import vis
-            output_mesh = prepare_voxel_mesh_txt(self.voxelized_mesh, expected_in_outs=self.expected_in_outs,
-                                                 num_type='int')
 
-            boolean_array = (output_mesh == 3)
-            # vis(self.voxelized_mesh)
-            print(np.sum(boolean_array))
-            vis(boolean_array)
+            # output_mesh = prepare_voxel_mesh_txt(self.voxelized_mesh, expected_in_outs=self.expected_in_outs,
+            #                                      num_type='int')
+            #
+            # boolean_array = (output_mesh == 3)
+            vis(self.voxelized_mesh)
         else:
             print("Error: No voxel mesh to visualize. Generate or load it first.")
 
@@ -133,7 +149,9 @@ class Geometry:
         if self.voxelized_mesh is None:
             self.lbm_mesh = None
         else:
-            self.lbm_mesh = generate_lbm_mesh(self.voxelized_mesh, expected_in_outs=self.expected_in_outs)
+            self.lbm_mesh = generate_lbm_mesh(
+                self.voxelized_mesh, expected_in_outs=self.expected_in_outs
+            )
 
             print(f"LBM mesh generation complete. Shape: {self.lbm_mesh.shape}")
 
@@ -149,18 +167,56 @@ class Geometry:
             array_to_textfile(self.lbm_mesh, file_path)
             print(f"Voxel mesh saved as text to {file_path}")
         else:
-            print("Error: No voxel mesh to save. Generate it first using 'generate_voxel_mesh'.")
+            print(
+                "Error: No voxel mesh to save. Generate it first using 'generate_voxel_mesh'."
+            )
 
 
 if __name__ == "__main__":
-    # Example usage
-    # geom = Geometry(name="tcpc_classic", resolution=3, split=3 * 128, num_processes=8, angle=0, h=0.01)
-    # geom = Geometry(name="basic_junction", resolution=3, split=3 * 128, num_processes=4, offset=0.25, h=0.01, expected_in_outs={'W', 'E', 'S', 'N'})
-    # geom = Geometry(name="junction_1d", resolution=6, split=6 * 128, num_processes=4, offset=0.012, h=0.0005, expected_in_outs={'W', 'E', 'S', 'N'})
-    # geom = Geometry(name="junction_1d", resolution=6, split=6 * 128, num_processes=4, offset=0.0038, h=0.0005, expected_in_outs={'W', 'E', 'S', 'N'})
-    geom = Geometry(name="junction_1d", resolution=6, split=6 * 128, num_processes=4, offset=0.0015, h=0.0005, expected_in_outs={'W', 'E', 'S', 'N'})
-    geom.generate_voxel_mesh()
-    geom.generate_lbm_mesh()
-    # geom.save_lbm_mesh_to_text()
-    geom.save_voxel_mesh_to_text()
-    geom.visualize()
+    offsets = [
+        -0.02,
+        -0.01652893,
+        -0.01338843,
+        -0.01057851,
+        -0.00809917,
+        -0.00595041,
+        -0.00413223,
+        -0.00264463,
+        -0.0014876,
+        -0.00066116,
+        -0.00016529,
+        0.0,
+        0.00016529,
+        0.00066116,
+        0.0014876,
+        0.00264463,
+        0.00413223,
+        0.00595041,
+        0.00809917,
+        0.01057851,
+        0.01338843,
+        0.01652893,
+        0.02,
+    ]
+
+    for offset in offsets:
+        # Scale and round the offset to a fixed number of decimals
+        scaled_offset = round(offset * 1e6)  # Scale to micro-units for readability
+        # Format the identifier with consistent padding
+        if offset < 0:
+            identifier = f"RES_3_OFF_M{abs(scaled_offset):08d}"  # Zero-padded 8 digits
+        else:
+            identifier = f"RES_3_OFF_{scaled_offset:08d}"  # Zero-padded 8 digits
+
+        geom = Geometry(
+            name="junction_1d",
+            resolution=3,
+            split=3 * 128,
+            num_processes=4,
+            offset=offset,
+            h=0.0005,
+            expected_in_outs={"W", "E", "S", "N"},
+        )
+
+        geom.generate_voxel_mesh()
+        geom.save_voxel_mesh_to_text(identifier + ".txt")
