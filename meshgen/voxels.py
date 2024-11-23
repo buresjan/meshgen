@@ -458,7 +458,7 @@ def calculate_voxel_size(mesh, res):
     return voxel_size
 
 
-def voxelize_without_splitting(mesh, voxel_size):
+def voxelize_elementary(mesh, voxel_size):
     """
     Convert a mesh into a voxelized representation without splitting.
 
@@ -495,7 +495,7 @@ def process_submesh(submsh, margin, voxel_size, leading_direction):
     numpy.ndarray: A 3D array representing the processed and filled submesh segment.
     """
     # Voxelizing the submesh without splitting
-    voxelized_segment = voxelize_without_splitting(submsh, voxel_size)
+    voxelized_segment = voxelize_elementary(submsh, voxel_size)
 
     # Completing the segment by adding necessary margins
     comp = complete_segment(voxelized_segment, margin.astype(int))
@@ -610,7 +610,7 @@ def voxelize_mesh(name, res=1, split=None, num_processes=1, **kwargs):
 
     if split is None:
         # Voxelize the mesh without splitting
-        output = voxelize_without_splitting(mesh, voxel_size)
+        output = voxelize_elementary(mesh, voxel_size)
     else:
         # Calculate the bounding box dimensions of the mesh
         bounds = mesh.bounds
@@ -624,7 +624,6 @@ def voxelize_mesh(name, res=1, split=None, num_processes=1, **kwargs):
         # Voxelize the mesh with splitting along the leading direction
         output = voxelize_with_splitting(boxed_mesh, voxel_size, split, num_processes=num_processes)
 
-    # return output
     return output
 
 
