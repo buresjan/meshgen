@@ -173,50 +173,82 @@ class Geometry:
 
 
 if __name__ == "__main__":
+    # offsets = [
+    #     -0.02,
+    #     -0.01652893,
+    #     -0.01338843,
+    #     -0.01057851,
+    #     -0.00809917,
+    #     -0.00595041,
+    #     -0.00413223,
+    #     -0.00264463,
+    #     -0.0014876,
+    #     -0.00066116,
+    #     -0.00016529,
+    #     0.0,
+    #     0.00016529,
+    #     0.00066116,
+    #     0.0014876,
+    #     0.00264463,
+    #     0.00413223,
+    #     0.00595041,
+    #     0.00809917,
+    #     0.01057851,
+    #     0.01338843,
+    #     0.01652893,
+    #     0.02,
+    # ]
+    #
+    # offsets = [
+    #     0.0018,
+    # ]
+    #
+    # for offset in offsets:
+    #     # Scale and round the offset to a fixed number of decimals
+    #     scaled_offset = round(offset * 1e6)  # Scale to micro-units for readability
+    #     # Format the identifier with consistent padding
+    #     if offset < 0:
+    #         identifier = f"RES_6_OFF_M{abs(scaled_offset):08d}"  # Zero-padded 8 digits
+    #     else:
+    #         identifier = f"RES_6_OFF_{scaled_offset:08d}"  # Zero-padded 8 digits
+    #
+    #     geom = Geometry(
+    #         name="junction_1d",
+    #         resolution=6,
+    #         split=6 * 128,
+    #         num_processes=4,
+    #         offset=offset,
+    #         h=0.0005,
+    #         expected_in_outs={"W", "E", "S", "N"},
+    #     )
+    #
+    #     geom.generate_voxel_mesh()
+    #     geom.save_voxel_mesh_to_text(identifier + ".txt")
+    
     offsets = [
-        -0.02,
-        -0.01652893,
-        -0.01338843,
-        -0.01057851,
-        -0.00809917,
-        -0.00595041,
-        -0.00413223,
-        -0.00264463,
-        -0.0014876,
-        -0.00066116,
-        -0.00016529,
-        0.0,
-        0.00016529,
-        0.00066116,
-        0.0014876,
-        0.00264463,
-        0.00413223,
-        0.00595041,
-        0.00809917,
-        0.01057851,
-        0.01338843,
-        0.01652893,
-        0.02,
+        0.00000000,
+        0.00010000,
     ]
-
+    
     for offset in offsets:
-        # Scale and round the offset to a fixed number of decimals
+        print("generating offset ", offset)
         scaled_offset = round(offset * 1e6)  # Scale to micro-units for readability
-        # Format the identifier with consistent padding
         if offset < 0:
-            identifier = f"RES_3_OFF_M{abs(scaled_offset):08d}"  # Zero-padded 8 digits
+            identifier = f"RES_9_OFF_M{abs(scaled_offset):08d}"  # Zero-padded 8 digits
         else:
-            identifier = f"RES_3_OFF_{scaled_offset:08d}"  # Zero-padded 8 digits
-
+            identifier = f"RES_9_OFF_{scaled_offset:08d}"  # Zero-padded 8 digits
+    
         geom = Geometry(
-            name="junction_1d",
-            resolution=3,
-            split=3 * 128,
-            num_processes=4,
-            offset=offset,
-            h=0.0005,
-            expected_in_outs={"W", "E", "S", "N"},
+             name="junction_1d",
+             resolution=9,
+             split=9 * 128,
+             num_processes=2,
+             offset=offset,
+             h=0.0005,
+             expected_in_outs={"W", "E", "S", "N"},
         )
-
+    
         geom.generate_voxel_mesh()
+        geom.save_voxel_mesh(identifier + ".npy")
         geom.save_voxel_mesh_to_text(identifier + ".txt")
+
