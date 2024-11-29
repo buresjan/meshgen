@@ -702,6 +702,68 @@ def assign_near_walls(original_mesh):
     return updated_mesh
 
 
+def assign_near_near_walls(original_mesh):
+    # Copy the original array to avoid modifying it directly
+    updated_mesh = original_mesh.copy()
+
+    # Get the shape of the 3D array
+    x_max, y_max, z_max = original_mesh.shape
+
+    # Define the offsets for the 26 neighboring cells
+    neighbors = [(i, j, k)
+                 for i in [-1, 0, 1]
+                 for j in [-1, 0, 1]
+                 for k in [-1, 0, 1]
+                 if (i, j, k) != (0, 0, 0)]
+
+    # Iterate through each cell in the array
+    for x in range(1, x_max - 1):
+        for y in range(1, y_max - 1):
+            for z in range(1, z_max - 1):
+                # Check if the current cell is fluid (1)
+                if original_mesh[x, y, z] == 1:
+                    # Check all 26 neighbors
+                    for dx, dy, dz in neighbors:
+                        nx, ny, nz = x + dx, y + dy, z + dz
+                        # If any neighbor is wall (2), label the cell as near-wall (3)
+                        if original_mesh[nx, ny, nz] == 3:
+                            updated_mesh[x, y, z] = 4
+                            continue
+
+    return updated_mesh
+
+
+def assign_near_near_near_walls(original_mesh):
+    # Copy the original array to avoid modifying it directly
+    updated_mesh = original_mesh.copy()
+
+    # Get the shape of the 3D array
+    x_max, y_max, z_max = original_mesh.shape
+
+    # Define the offsets for the 26 neighboring cells
+    neighbors = [(i, j, k)
+                 for i in [-1, 0, 1]
+                 for j in [-1, 0, 1]
+                 for k in [-1, 0, 1]
+                 if (i, j, k) != (0, 0, 0)]
+
+    # Iterate through each cell in the array
+    for x in range(1, x_max - 1):
+        for y in range(1, y_max - 1):
+            for z in range(1, z_max - 1):
+                # Check if the current cell is fluid (1)
+                if original_mesh[x, y, z] == 1:
+                    # Check all 26 neighbors
+                    for dx, dy, dz in neighbors:
+                        nx, ny, nz = x + dx, y + dy, z + dz
+                        # If any neighbor is wall (2), label the cell as near-wall (3)
+                        if original_mesh[nx, ny, nz] == 4:
+                            updated_mesh[x, y, z] = 5
+                            continue
+
+    return updated_mesh
+
+
 def prepare_voxel_mesh_txt(mesh, expected_in_outs=None, num_type='int'):
     output_mesh = label_elements(mesh, expected_in_outs=expected_in_outs, num_type=num_type)
 
@@ -719,6 +781,8 @@ def prepare_voxel_mesh_txt(mesh, expected_in_outs=None, num_type='int'):
 
     export_mesh = final_mesh.copy()
     export_mesh = assign_near_walls(export_mesh)
+    export_mesh = assign_near_near_walls(export_mesh)
+    export_mesh = assign_near_near_near_walls(export_mesh)
 
     # return final_mesh
     return export_mesh
