@@ -90,6 +90,7 @@ class Geometry:
                 expected_in_outs=self.expected_in_outs,
                 num_type="int",
             )
+
             file_path = os.path.join(self.output_dir, filename)
             array_to_textfile(output_mesh, file_path)
             print(f"Voxel mesh saved as text to {file_path}")
@@ -226,29 +227,53 @@ if __name__ == "__main__":
     #     geom.save_voxel_mesh_to_text(identifier + ".txt")
     
     offsets = [
+        # 0.00050000,
+        # 0.00650000,
         0.00000000,
-        0.00010000,
+        0.00100000,
+        0.00200000,
+        0.00300000,
+        0.00400000,
+        0.00500000,
+        0.00600000,
+        0.00700000,
+        0.00800000,
+        0.00900000,
+        0.01000000,
+        0.01100000,
+        0.01200000,
+        0.01300000,
+        0.01400000,
+        0.01500000,
+        0.01600000,
+        0.01700000,
+        0.01800000,
+        0.01900000,
+        0.02000000,
     ]
+    #
+    # for offset in offsets:
+    #     print("generating offset ", offset)
+    #     scaled_offset = round(offset * 1e6)  # Scale to micro-units for readability
+    #     if offset < 0:
+    #         identifier = f"RES_4_OFF_M{abs(scaled_offset):08d}"  # Zero-padded 8 digits
+    #     else:
+    #         identifier = f"RES_4_OFF_{scaled_offset:08d}"  # Zero-padded 8 digits
     
-    for offset in offsets:
-        print("generating offset ", offset)
-        scaled_offset = round(offset * 1e6)  # Scale to micro-units for readability
-        if offset < 0:
-            identifier = f"RES_9_OFF_M{abs(scaled_offset):08d}"  # Zero-padded 8 digits
-        else:
-            identifier = f"RES_9_OFF_{scaled_offset:08d}"  # Zero-padded 8 digits
-    
-        geom = Geometry(
-             name="junction_1d",
-             resolution=9,
-             split=9 * 128,
-             num_processes=2,
-             offset=offset,
-             h=0.0005,
-             expected_in_outs={"W", "E", "S", "N"},
-        )
-    
-        geom.generate_voxel_mesh()
-        geom.save_voxel_mesh(identifier + ".npy")
-        geom.save_voxel_mesh_to_text(identifier + ".txt")
+    geom = Geometry(
+         # name="junction_1d",
+         # name="t_cube",
+         name="t_cylinder",
+         resolution=6,
+         split=6 * 128,
+         num_processes=2,
+         # offset=offset,
+         h=0.005,
+         # expected_in_outs={"W", "E", "S", "N"},
+         expected_in_outs={"W", "E", "S"},
+    )
+
+    geom.generate_voxel_mesh()
+    # geom.save_voxel_mesh_to_text(identifier + ".txt")
+    geom.visualize()
 
