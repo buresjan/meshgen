@@ -1,6 +1,8 @@
-from voxels import voxelize_mesh, generate_lbm_mesh, prepare_voxel_mesh_txt
 import os
 import numpy as np
+import json
+import hashlib
+from voxels import voxelize_mesh, generate_lbm_mesh, prepare_voxel_mesh_txt
 from utilities import array_to_textfile
 
 
@@ -47,6 +49,13 @@ class Geometry:
 
         self.expected_in_outs = expected_in_outs
 
+        # Store state as JSON string
+        self.state = json.dumps(kwargs)
+
+        # Generate a name hash
+        self.name_hash = hashlib.md5(name.encode()).hexdigest()
+
+
     def generate_voxel_mesh(self):
         """
         Generate the voxelized mesh for the geometry based on the .geo template.
@@ -91,9 +100,31 @@ class Geometry:
                 num_type="int",
             )
 
-            file_path = os.path.join(self.output_dir, filename)
-            array_to_textfile(output_mesh, file_path)
-            print(f"Voxel mesh saved as text to {file_path}")
+            # Prepare filenames
+            geom_file = os.path.join(self.output_dir, f"geom_{filename}")
+            dim_file = os.path.join(self.output_dir, f"dim_{filename}")
+            val_file = os.path.join(self.output_dir, f"val_{filename}")
+
+            # Save geometry file
+            array_to_textfile(output_mesh, geom_file)
+
+            # Save dimensions file
+            with open(dim_file, "w") as f:
+                shape = self.voxelized_mesh.shape
+                f.write(f"{shape[0]} {shape[1]} {shape[2]}\n")
+
+            # Create empty values file
+            open(val_file, "w").close()
+
+            # Check for special case
+            if self.name == "junction_2d":
+                angle_file = os.path.join(self.output_dir, f"angle_{filename}")
+                lower_angle = self.kwargs.get("lower_angle", "undefined")
+                upper_angle = self.kwargs.get("upper_angle", "undefined")
+                with open(angle_file, "w") as f:
+                    f.write(f"{lower_angle} {upper_angle}\n")
+
+            print(f"Voxel mesh and additional files saved to {self.output_dir}")
         else:
             print(
                 "Error: No voxel mesh to save. Generate it first using 'generate_voxel_mesh'."
@@ -174,106 +205,23 @@ class Geometry:
 
 
 if __name__ == "__main__":
-    # offsets = [
-    #     -0.02,
-    #     -0.01652893,
-    #     -0.01338843,
-    #     -0.01057851,
-    #     -0.00809917,
-    #     -0.00595041,
-    #     -0.00413223,
-    #     -0.00264463,
-    #     -0.0014876,
-    #     -0.00066116,
-    #     -0.00016529,
-    #     0.0,
-    #     0.00016529,
-    #     0.00066116,
-    #     0.0014876,
-    #     0.00264463,
-    #     0.00413223,
-    #     0.00595041,
-    #     0.00809917,
-    #     0.01057851,
-    #     0.01338843,
-    #     0.01652893,
-    #     0.02,
-    # ]
-    #
-    # offsets = [
-    #     0.0018,
-    # ]
-    #
-    # for offset in offsets:
-    #     # Scale and round the offset to a fixed number of decimals
-    #     scaled_offset = round(offset * 1e6)  # Scale to micro-units for readability
-    #     # Format the identifier with consistent padding
-    #     if offset < 0:
-    #         identifier = f"RES_6_OFF_M{abs(scaled_offset):08d}"  # Zero-padded 8 digits
-    #     else:
-    #         identifier = f"RES_6_OFF_{scaled_offset:08d}"  # Zero-padded 8 digits
-    #
-    #     geom = Geometry(
-    #         name="junction_1d",
-    #         resolution=6,
-    #         split=6 * 128,
-    #         num_processes=4,
-    #         offset=offset,
-    #         h=0.0005,
-    #         expected_in_outs={"W", "E", "S", "N"},
-    #     )
-    #
-    #     geom.generate_voxel_mesh()
-    #     geom.save_voxel_mesh_to_text(identifier + ".txt")
-    
-    offsets = [
-        # 0.00050000,
-        # 0.00650000,
-        0.00000000,
-        0.00100000,
-        0.00200000,
-        0.00300000,
-        0.00400000,
-        0.00500000,
-        0.00600000,
-        0.00700000,
-        0.00800000,
-        0.00900000,
-        0.01000000,
-        0.01100000,
-        0.01200000,
-        0.01300000,
-        0.01400000,
-        0.01500000,
-        0.01600000,
-        0.01700000,
-        0.01800000,
-        0.01900000,
-        0.02000000,
-    ]
-    #
-    # for offset in offsets:
-    #     print("generating offset ", offset)
-    #     scaled_offset = round(offset * 1e6)  # Scale to micro-units for readability
-    #     if offset < 0:
-    #         identifier = f"RES_4_OFF_M{abs(scaled_offset):08d}"  # Zero-padded 8 digits
-    #     else:
-    #         identifier = f"RES_4_OFF_{scaled_offset:08d}"  # Zero-padded 8 digits
-    
     geom = Geometry(
-         # name="junction_1d",
-         # name="t_cube",
-         name="t_cylinder",
-         resolution=6,
-         split=6 * 128,
-         num_processes=2,
-         # offset=offset,
+         name="junction_2d",
+         resolution=4,
+         # split=4 * 128,
+         num_processes=4,
+         offset=0.01,
+         lower_angle=10,
+         upper_angle=0,
+         upper_flare=0.001,
+         lower_flare=0.002,
          h=0.005,
-         # expected_in_outs={"W", "E", "S", "N"},
-         expected_in_outs={"W", "E", "S"},
+         expected_in_outs={"W", "E", "S", "N"},
     )
-
+    name_hash = geom.name_hash
+    state = geom.state
     geom.generate_voxel_mesh()
-    # geom.save_voxel_mesh_to_text(identifier + ".txt")
+    geom.save_voxel_mesh_to_text(f"{name_hash}.txt")
+    print(state)
     geom.visualize()
 
