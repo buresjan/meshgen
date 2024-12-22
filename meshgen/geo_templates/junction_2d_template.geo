@@ -10,23 +10,24 @@ Mesh.CharacteristicLengthMin = h;
 Mesh.CharacteristicLengthMax = h;
 
 // Offset for positioning along the X-axis - bounds -0.02 to +0.02
-OFFSET = 0.02;  // Adjust if needed for positioning; set to 0 for centered positioning
+OFFSET = 0.00;  // Adjust if needed for positioning; set to 0 for centered positioning
 // OFFSET = DEFINE_OFFSET
 
 // Rotation of the conduit - bounds -0.5 to +0.5
-LOWER_ANGLE = -0.5;
-// LOWER_ANGLE = DEFINE_LOWER_ANGLE
+LOWER_ANGLE = DEFINE_LOWER_ANGLE;
+LOWER_ANGLE = (3.14159 / 180) * LOWER_ANGLE;
 
 // Rotation of the vena cava - bounds -0.5 to +0.5
-UPPER_ANGLE = -0.3;
-// UPPER_ANGLE = DEFINE_UPPER_ANGLE
+UPPER_ANGLE = DEFINE_UPPER_ANGLE;
+UPPER_ANGLE = (3.14159 / 180) * UPPER_ANGLE;
 
 // Modification of the width of the conduit - bounds -0.001 to +0.001
-EXTRA_WIDTH = 0.001;
+EXTRA_WIDTH = 0.000;
 // EXTRA_WIDTH = DEFINE_EXTRA_WIDTH
 
-
-
+// Flaring of the connections - bounds 0.0 to 0.0035
+UPPER_FLARE = DEFINE_UPPER_FLARE;
+LOWER_FLARE = DEFINE_LOWER_FLARE;
 
 // Cylinder dimensions
 LOWER_LENGTH = 0.06;  // Length of the lower (bottom) cylinder in meters
@@ -56,11 +57,9 @@ Disk(1) = {OFFSET, 0.0, LOWER_LENGTH, LOWER_RADIUS};
 Extrude { Surface{1}; } Using Wire {2}
 */
 
-FLARE = 0.002;
-
 // Points that determine the central axis of the conduit - used for forming a closed loop
 Point(1) = {OFFSET, 0.0, 0.0, h};
-Point(9) = {OFFSET, 0.0, LOWER_LENGTH, h};
+Point(11) = {OFFSET, 0.0, LOWER_LENGTH, h};
 
 // Main points forming the spline to be rotated and revolved
 Point(2) = {OFFSET + LOWER_RADIUS, 0.0, 0.0, h};
@@ -68,17 +67,19 @@ Point(3) = {OFFSET + LOWER_RADIUS, 0.0, 1.0 * LOWER_LENGTH / 8.0, h};
 Point(4) = {OFFSET + LOWER_RADIUS, 0.0, 2.0 * LOWER_LENGTH / 8.0, h};
 Point(5) = {OFFSET + LOWER_RADIUS, 0.0, 3.0 * LOWER_LENGTH / 8.0, h};
 Point(6) = {OFFSET + LOWER_RADIUS, 0.0, LOWER_LENGTH / 2.0, h};
-Point(7) = {OFFSET + LOWER_RADIUS + FLARE / 3.0, 0.0, 3.0 * LOWER_LENGTH / 4.0, h};
-Point(8) = {OFFSET + LOWER_RADIUS + FLARE, 0.0, LOWER_LENGTH, h};
+Point(7) = {OFFSET + LOWER_RADIUS + LOWER_FLARE / 4.0, 0.0, 5.0 * LOWER_LENGTH / 8.0, h};
+Point(8) = {OFFSET + LOWER_RADIUS + 2.5 * LOWER_FLARE / 4.0, 0.0, 6.0 * LOWER_LENGTH / 8.0, h};
+Point(9) = {OFFSET + LOWER_RADIUS + 3.0 * LOWER_FLARE / 4.0, 0.0, 7.0 * LOWER_LENGTH / 8.0, h};
+Point(10) = {OFFSET + LOWER_RADIUS + LOWER_FLARE, 0.0, LOWER_LENGTH, h};
 
 // Lines that form a close loop
 Line(1) = {1, 2};
 Line(2) = {2, 3};
-Line(4) = {8, 9};
-Line(5) = {9, 1};
+Line(4) = {10, 11};
+Line(5) = {11, 1};
 
 // Spline connecting the main points
-Spline(3) = {3, 4, 5, 6, 7, 8};
+Spline(3) = {3, 4, 5, 6, 7, 8, 9, 10};
 
 // Closed loop formed by the lines
 Curve Loop(1) = {1, 2, 3, 4, 5};
@@ -101,18 +102,39 @@ Rotate { {0, 1, 0}, {OFFSET, 0.0, LOWER_LENGTH}, LOWER_ANGLE} {
 ////////////////////////////////////////////// ID - 00101 ////////////////////////////////////////////////////////
 
 // Define points along the axis of the upper cylinder
+Point(111) = {0.0, 0.0, LOWER_LENGTH, h};
 Point(101) = {0.0, 0.0, LOWER_LENGTH + UPPER_LENGTH, h};
-Point(102) = {0.0, 0.0, LOWER_LENGTH, h};
 
-// Create line and wire for upper cylinder extrusion
-Line(101) = {102, 101};
-Wire(102) = {101};
+// Main points forming the spline to be rotated and revolved
+Point(102) = {UPPER_RADIUS, 0.0, LOWER_LENGTH + UPPER_LENGTH, h};
+Point(103) = {UPPER_RADIUS, 0.0, LOWER_LENGTH + UPPER_LENGTH - 1.0 * UPPER_LENGTH / 8.0, h};
+Point(104) = {UPPER_RADIUS, 0.0, LOWER_LENGTH + UPPER_LENGTH - 2.0 * UPPER_LENGTH / 8.0, h};
+Point(105) = {UPPER_RADIUS, 0.0, LOWER_LENGTH + UPPER_LENGTH - 3.0 * UPPER_LENGTH / 8.0, h};
+Point(106) = {UPPER_RADIUS, 0.0, LOWER_LENGTH + UPPER_LENGTH - UPPER_LENGTH / 2.0, h};
+Point(107) = {UPPER_RADIUS + UPPER_FLARE / 4.0, 0.0, LOWER_LENGTH + UPPER_LENGTH - 5.0 * UPPER_LENGTH / 8.0, h};
+Point(108) = {UPPER_RADIUS + 2.5 * UPPER_FLARE / 4.0, 0.0, LOWER_LENGTH + UPPER_LENGTH - 6.0 * UPPER_LENGTH / 8.0, h};
+Point(109) = {UPPER_RADIUS + 3.0 * UPPER_FLARE / 4.0, 0.0, LOWER_LENGTH + UPPER_LENGTH - 7.0 * UPPER_LENGTH / 8.0, h};
+Point(110) = {UPPER_RADIUS + UPPER_FLARE, 0.0, UPPER_LENGTH, h};
 
-// Disk representing the base of the upper cylinder
-Disk(101) = {0.0, 0.0, LOWER_LENGTH + UPPER_LENGTH, UPPER_RADIUS};
+// Lines that form a close loop
+Line(101) = {101, 102};
+Line(102) = {102, 103};
+Line(104) = {110, 111};
+Line(105) = {111, 101};
 
-// Extrude the surface to form the second cylinder volume
-Extrude { Surface{101}; } Using Wire {102}
+// Spline connecting the main points
+Spline(103) = {103, 104, 105, 106, 107, 108, 109, 110};
+
+// Closed loop formed by the lines
+Curve Loop(101) = {101, 102, 103, 104, 105};
+
+// Make a surface inside of the closed loop
+Plane Surface(101) = {101};
+
+// Revolve the surface around the axis X that is translated to the central point of the conduit creating Volume{1}
+Extrude { {0, 0, 1}, {0.0, 0.0, LOWER_LENGTH + UPPER_LENGTH} , 2*Pi } {
+  Surface{101}; Recombine;
+}
 
 // Rotate the created volume by specified angle around the axis Z that is translated to the central point of the conduit
 Rotate { {0, 1, 0}, {0.0, 0.0, LOWER_LENGTH}, UPPER_ANGLE} {
@@ -154,11 +176,11 @@ Recursive Delete {
 
 // Delete any remaining lines
 Recursive Delete {
-  Line{101, 10001};
+  Line{10001};
 }
 
 Recursive Delete {
-  Point{4, 5, 6, 7};
+  Point{4, 5, 6, 7, 8, 9, 104, 105, 106, 107, 108, 109};
 }
 
 // Create a box domain that is used to slice potential "tilted" bottom part of the rotated conduit - we want it to be
