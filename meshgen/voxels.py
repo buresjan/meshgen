@@ -611,6 +611,7 @@ def voxelize_mesh(name, res=1, split=None, num_processes=1, **kwargs):
     if split is None:
         # Voxelize the mesh without splitting
         output = voxelize_elementary(mesh, voxel_size)
+        output = fill_mesh_inside_surface(output)
     else:
         # Calculate the bounding box dimensions of the mesh
         bounds = mesh.bounds
