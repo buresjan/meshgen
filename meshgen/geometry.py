@@ -205,23 +205,22 @@ class Geometry:
 
 
 if __name__ == "__main__":
-    geom = Geometry(
-         name="junction_2d",
-         resolution=4,
-         # split=4 * 128,
-         num_processes=4,
-         offset=0.01,
-         lower_angle=10,
-         upper_angle=0,
-         upper_flare=0.001,
-         lower_flare=0.002,
-         h=0.005,
-         expected_in_outs={"W", "E", "S", "N"},
-    )
-    name_hash = geom.name_hash
-    state = geom.state
-    geom.generate_voxel_mesh()
-    geom.save_voxel_mesh_to_text(f"{name_hash}.txt")
-    print(state)
-    geom.visualize()
+    pass
+    # geom = Geometry(
+    #      name="junction_2d",
+    #      resolution=4,
+    #      num_processes=4,
+    #      offset=0.01,
+    #      lower_angle=10,
+    #      upper_angle=0,
+    #      upper_flare=0.001,
+    #      lower_flare=0.002,
+    #      h=0.005,
+    #      expected_in_outs={"W", "E", "S", "N"},
+    # )
+    # name_hash = geom.name_hash
+    # state = geom.state
+    # geom.generate_voxel_mesh()
+    # geom.save_voxel_mesh_to_text(f"{name_hash}.txt")
+    # geom.visualize()
 
