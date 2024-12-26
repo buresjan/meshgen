@@ -100,7 +100,7 @@ def box_stl(stl_file, x, y, z, dx, dy, dz, voxel_size):
     return stl_file_path
 
 
-def gmsh_surface(name_geo, **kwargs):
+def gmsh_surface(name_geo, dependent=False, **kwargs):
     """
     Generate a surface mesh using Gmsh based on a template GEO file and custom parameters.
 
@@ -119,11 +119,18 @@ def gmsh_surface(name_geo, **kwargs):
     # Initialize Gmsh for mesh generation
     gmsh.initialize()
 
-    # Paths for the input template and output GEO file
-    geo_file_path = f"../meshgen/geo_templates/{name_geo}_template.geo"
-    output_geo_file_path = (
-        f"../meshgen/geo_templates/temp/{name_geo}_template_filled.geo"
-    )
+    if dependent:
+        # Paths for the input template and output GEO file
+        geo_file_path = f"../meshgen/meshgen/geo_templates/{name_geo}_template.geo"
+        output_geo_file_path = (
+            f"../meshgen/meshgen/geo_templates/temp/{name_geo}_template_filled.geo"
+        )
+    else:
+        # Paths for the input template and output GEO file
+        geo_file_path = f"../meshgen/geo_templates/{name_geo}_template.geo"
+        output_geo_file_path = (
+            f"../meshgen/geo_templates/temp/{name_geo}_template_filled.geo"
+        )
 
     # Modify the GEO template with the provided parameters
     modify_geo_file(geo_file_path, output_geo_file_path, **kwargs)
@@ -135,7 +142,10 @@ def gmsh_surface(name_geo, **kwargs):
     gmsh.model.mesh.generate(2)
 
     # Export the generated mesh as an STL file
-    stl_file_path = f"../meshgen/stl_models/{name_geo}.stl"
+    if dependent:
+        stl_file_path = f"../meshgen/meshgen/stl_models/{name_geo}.stl"
+    else:
+        stl_file_path = f"../meshgen/stl_models/{name_geo}.stl"
     gmsh.write(stl_file_path)
 
     # Finalize Gmsh to free resources

@@ -1,7 +1,7 @@
 import trimesh as trm
 import numpy as np
 import scipy
-import mesher
+import meshgen.mesher as mesher
 
 from tqdm import tqdm  # Import tqdm
 from concurrent.futures import ProcessPoolExecutor
@@ -600,7 +600,7 @@ def voxelize_mesh(name, res=1, split=None, num_processes=1, **kwargs):
     modified_kwargs = kwargs
     modified_kwargs["resolution"] = res
 
-    stl_file_path = mesher.gmsh_surface(name, **modified_kwargs)
+    stl_file_path = mesher.gmsh_surface(name, True, **modified_kwargs)
 
     # Load the mesh from the specified path
     mesh = trm.load(stl_file_path)

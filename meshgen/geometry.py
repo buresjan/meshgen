@@ -2,8 +2,8 @@ import os
 import numpy as np
 import json
 import hashlib
-from voxels import voxelize_mesh, generate_lbm_mesh, prepare_voxel_mesh_txt
-from utilities import array_to_textfile
+from meshgen.voxels import voxelize_mesh, generate_lbm_mesh, prepare_voxel_mesh_txt
+from meshgen.utilities import array_to_textfile
 
 
 class Geometry:
@@ -52,8 +52,9 @@ class Geometry:
         # Store state as JSON string
         self.state = json.dumps(kwargs)
 
+        state = self.state
         # Generate a name hash
-        self.name_hash = hashlib.md5(name.encode()).hexdigest()
+        self.name_hash = hashlib.md5(state.encode()).hexdigest()
 
 
     def generate_voxel_mesh(self):
@@ -110,7 +111,7 @@ class Geometry:
 
             # Save dimensions file
             with open(dim_file, "w") as f:
-                shape = self.voxelized_mesh.shape
+                shape = output_mesh.shape
                 f.write(f"{shape[0]} {shape[1]} {shape[2]}\n")
 
             # Create empty values file
