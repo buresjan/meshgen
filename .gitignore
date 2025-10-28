@@ -4,3 +4,8 @@
 *.npy
 *_mesh.txt
 /meshgen/output/
+scripts/
+meshgen.egg-info/
+meshgen/__pycache__/
+examples/output/
+/output/
