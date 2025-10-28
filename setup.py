@@ -8,6 +8,14 @@ setup(
     url="https://github.com/buresjan/meshgen",
     packages=find_packages(),
     include_package_data=True,
+    package_data={
+        "meshgen": [
+            "geo_templates/*.geo",
+            "geo_templates/*/*.geo",
+            "stl_models/*.stl",
+            "stl_models/*/*.stl",
+        ]
+    },
     install_requires=[      # Core dependencies
         "numpy",
         "scipy",
@@ -23,4 +31,3 @@ setup(
     },
     python_requires=">=3.8",  # Specify the compatible Python version
 )
-

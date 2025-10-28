@@ -1,5 +1,7 @@
-import gmsh
+import os
+import tempfile
 import shutil
+import gmsh
 
 
 def modify_geo_file(input_file_path, output_file_path, **kwargs):
@@ -55,17 +57,31 @@ def box_stl(stl_file, x, y, z, dx, dy, dz, voxel_size):
     Returns:
     str: The path to the generated boxed STL file.
     """
-    # Paths for the input template and output GEO file
-    input_file_path = f"../meshgen/geo_templates/boxed_stl_template.geo"
-    output_file_path = (
-        f"../meshgen/geo_templates/temp/boxed_{stl_file}_template_filled.geo"
-    )
+    # Resolve template/geometries relative to this package directory
+    base_dir = os.path.dirname(__file__)
+    template_path = os.path.join(base_dir, "geo_templates", "boxed_stl_template.geo")
+
+    # Use a temporary working directory for generated files
+    workdir = tempfile.mkdtemp(prefix="meshgen_box_")
+    output_file_path = os.path.join(workdir, f"boxed_template_filled.geo")
 
     # Modify the GEO template with the provided dimensions and voxel size
+    # Determine source STL path: accept absolute/relative path or name without extension
+    # Accept either a full/relative path to an STL or a bare name (without extension)
+    if os.path.isabs(stl_file) or os.sep in str(stl_file) or str(stl_file).lower().endswith('.stl'):
+        stl_source = stl_file
+    else:
+        stl_source = os.path.join(base_dir, "stl_models", f"{stl_file}.stl")
+
+    # Copy the STL source into the working directory using a fixed name
+    local_stl = os.path.join(workdir, "source.stl")
+    shutil.copyfile(stl_source, local_stl)
+
+    # Fill the boxed template with parameters
     modify_geo_file(
-        input_file_path,
+        template_path,
         output_file_path,
-        stl_file=stl_file + ".stl",
+        stl_file=os.path.basename(local_stl),
         x=x,
         y=y,
         z=z,
@@ -75,27 +91,21 @@ def box_stl(stl_file, x, y, z, dx, dy, dz, voxel_size):
         voxel_size=voxel_size,
     )
 
-    # Copy the original STL file to the working directory
-    shutil.copyfile(
-        f"../meshgen/stl_models/{stl_file}.stl",
-        f"../meshgen/geo_templates/temp/{stl_file}.stl",
-    )
-
     # Initialize Gmsh for mesh generation
     gmsh.initialize()
+    try:
+        # Open and process the modified GEO file
+        gmsh.open(output_file_path)
 
-    # Open and process the modified GEO file
-    gmsh.open(output_file_path)
+        # Generate a 2D mesh from the GEO file
+        gmsh.model.mesh.generate(2)
 
-    # Generate a 2D mesh from the GEO file
-    gmsh.model.mesh.generate(2)
-
-    # Export the generated mesh as an STL file
-    stl_file_path = f"../meshgen/stl_models/temp/boxed_{stl_file}.stl"
-    gmsh.write(stl_file_path)
-
-    # Finalize Gmsh to free resources
-    gmsh.finalize()
+        # Export the generated mesh as an STL file
+        stl_file_path = os.path.join(workdir, "boxed_output.stl")
+        gmsh.write(stl_file_path)
+    finally:
+        # Finalize Gmsh to free resources
+        gmsh.finalize()
 
     return stl_file_path
 
@@ -116,40 +126,46 @@ def gmsh_surface(name_geo, dependent=False, **kwargs):
     Returns:
     str: The path to the generated STL file.
     """
+    # Resolve template path relative to this package directory
+    base_dir = os.path.dirname(__file__)
+    template_path = os.path.join(base_dir, "geo_templates", f"{name_geo}_template.geo")
+
+    # Use a temporary working directory
+    workdir = tempfile.mkdtemp(prefix="meshgen_geo_")
+    filled_geo = os.path.join(workdir, f"{name_geo}_template_filled.geo")
+
+    # Provide a default for DEFINE_H if the template expects it and caller didn't pass it.
+    # Heuristic: scale mesh density with resolution if provided; fall back to 1e-3.
+    with open(template_path, "r") as _tf:
+        template_text = _tf.read()
+    filled_kwargs = dict(kwargs)
+    if "DEFINE_H" in template_text and ("h" not in filled_kwargs and "H" not in filled_kwargs):
+        res = filled_kwargs.get("resolution", 1)
+        try:
+            # Finer Gmsh near higher voxel resolution; bound to a reasonable minimum
+            h_val = max(1e-4, 1e-3 / max(1, float(res)))
+        except Exception:
+            h_val = 1e-3
+        filled_kwargs["h"] = h_val
+
+    # Fill template with provided and inferred parameters
+    modify_geo_file(template_path, filled_geo, **filled_kwargs)
+
     # Initialize Gmsh for mesh generation
     gmsh.initialize()
+    try:
+        # Open and process the modified GEO file
+        gmsh.open(filled_geo)
 
-    if dependent:
-        # Paths for the input template and output GEO file
-        geo_file_path = f"../meshgen/meshgen/geo_templates/{name_geo}_template.geo"
-        output_geo_file_path = (
-            f"../meshgen/meshgen/geo_templates/temp/{name_geo}_template_filled.geo"
-        )
-    else:
-        # Paths for the input template and output GEO file
-        geo_file_path = f"../meshgen/geo_templates/{name_geo}_template.geo"
-        output_geo_file_path = (
-            f"../meshgen/geo_templates/temp/{name_geo}_template_filled.geo"
-        )
+        # Generate a 2D mesh from the GEO file
+        gmsh.model.mesh.generate(2)
 
-    # Modify the GEO template with the provided parameters
-    modify_geo_file(geo_file_path, output_geo_file_path, **kwargs)
-
-    # Open and process the modified GEO file
-    gmsh.open(output_geo_file_path)
-
-    # Generate a 2D mesh from the GEO file
-    gmsh.model.mesh.generate(2)
-
-    # Export the generated mesh as an STL file
-    if dependent:
-        stl_file_path = f"../meshgen/meshgen/stl_models/{name_geo}.stl"
-    else:
-        stl_file_path = f"../meshgen/stl_models/{name_geo}.stl"
-    gmsh.write(stl_file_path)
-
-    # Finalize Gmsh to free resources
-    gmsh.finalize()
+        # Export the generated mesh as an STL file
+        stl_file_path = os.path.join(workdir, f"{name_geo}.stl")
+        gmsh.write(stl_file_path)
+    finally:
+        # Finalize Gmsh to free resources
+        gmsh.finalize()
 
     return stl_file_path
 

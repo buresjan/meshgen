@@ -2,19 +2,20 @@ import os
 import numpy as np
 import json
 import hashlib
-from meshgen.voxels import voxelize_mesh, generate_lbm_mesh, prepare_voxel_mesh_txt
+from meshgen.voxels import voxelize_mesh, voxelize_stl, generate_lbm_mesh, prepare_voxel_mesh_txt
 from meshgen.utilities import array_to_textfile
 
 
 class Geometry:
     def __init__(
         self,
-        name,
-        resolution,
+        name=None,
+        resolution=1,
         split=None,
         num_processes=1,
         output_dir="output",
         expected_in_outs=None,
+        stl_path=None,
         **kwargs,
     ):
         """
@@ -36,6 +37,7 @@ class Geometry:
         self.num_processes = num_processes
         self.output_dir = output_dir
         self.kwargs = kwargs
+        self.stl_path = stl_path
 
         # Ensure output directory exists
         if not os.path.exists(output_dir):
@@ -61,14 +63,23 @@ class Geometry:
         """
         Generate the voxelized mesh for the geometry based on the .geo template.
         """
-        print(f"Generating voxel mesh for geometry '{self.name}'...")
-        self.voxelized_mesh = voxelize_mesh(
-            self.name,
-            res=self.resolution,
-            split=self.split,
-            num_processes=self.num_processes,
-            **self.kwargs,
-        )
+        route = "STL" if self.stl_path else ".geo"
+        print(f"Generating voxel mesh via {route} route...")
+        if self.stl_path:
+            self.voxelized_mesh = voxelize_stl(
+                self.stl_path,
+                res=self.resolution,
+                split=self.split,
+                num_processes=self.num_processes,
+            )
+        else:
+            self.voxelized_mesh = voxelize_mesh(
+                self.name,
+                res=self.resolution,
+                split=self.split,
+                num_processes=self.num_processes,
+                **self.kwargs,
+            )
         print(f"Voxel mesh generation complete. Shape: {self.voxelized_mesh.shape}")
 
     def save_voxel_mesh(self, filename="voxel_mesh.npy"):
@@ -150,7 +161,8 @@ class Geometry:
         Visualize the voxelized mesh using the visualization function from utilities.
         """
         if self.voxelized_mesh is not None:
-            from utilities import vis
+            # Use absolute package import to avoid import errors when installed
+            from meshgen.utilities import vis
 
             # output_mesh = prepare_voxel_mesh_txt(self.voxelized_mesh, expected_in_outs=self.expected_in_outs,
             #                                      num_type='int')
@@ -195,10 +207,18 @@ class Geometry:
         Parameters:
         filename (str, optional): Name of the text file to save the voxel mesh. Default is 'voxel_mesh.txt'.
         """
-        if self.voxelized_mesh is not None:
-            file_path = os.path.join(self.output_dir, filename)
-            array_to_textfile(self.lbm_mesh, file_path)
-            print(f"Voxel mesh saved as text to {file_path}")
+        if self.lbm_mesh is not None:
+            # Use the same 3-file format as voxel text export for consistency
+            geom_file = os.path.join(self.output_dir, f"geom_{filename}")
+            dim_file = os.path.join(self.output_dir, f"dim_{filename}")
+            val_file = os.path.join(self.output_dir, f"val_{filename}")
+
+            array_to_textfile(self.lbm_mesh, geom_file)
+            with open(dim_file, "w") as f:
+                shape = self.lbm_mesh.shape
+                f.write(f"{shape[0]} {shape[1]} {shape[2]}\n")
+            open(val_file, "w").close()
+            print(f"LBM mesh saved to {self.output_dir} in triplet format")
         else:
             print(
                 "Error: No voxel mesh to save. Generate it first using 'generate_voxel_mesh'."
@@ -224,4 +244,3 @@ if __name__ == "__main__":
     # geom.generate_voxel_mesh()
     # geom.save_voxel_mesh_to_text(f"{name_hash}.txt")
     # geom.visualize()
-

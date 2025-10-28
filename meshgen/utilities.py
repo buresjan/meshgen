@@ -1,5 +1,3 @@
-from mayavi import mlab
-from scipy.ndimage import convolve
 import numpy as np
 
 
@@ -54,6 +52,9 @@ def vis(mesh):
     Parameters:
     mesh (numpy.ndarray): A 3D boolean array representing the voxelized mesh.
     """
+    # Lazy import to avoid hard dependency unless visualization is used
+    from mayavi import mlab
+
     # Adjust the scale factor for visualization; can be modified for denser meshes
     scale_factor = 1
 
@@ -98,16 +99,11 @@ def array_to_textfile(array, filename):
     if not isinstance(array, np.ndarray) or len(array.shape) != 3:
         raise ValueError("The input must be a 3D NumPy array.")
 
-    # Open the file for writing
-    with open(filename, "w") as file:
-        # Iterate over each element in the array
-        for x in range(array.shape[0]):
-            for y in range(array.shape[1]):
-                for z in range(array.shape[2]):
-                    # Convert the boolean value to an integer
-                    value = int(array[x, y, z])
-                    # Write the indices and value to the file
-                    file.write(f"{x} {y} {z} {value}\n")
+    # Vectorized export using numpy.savetxt to avoid Python loops
+    x_y_z = np.indices(array.shape).reshape(3, -1).T  # N x 3
+    values = array.astype(int).reshape(-1, 1)          # N x 1
+    data = np.hstack((x_y_z, values))                  # N x 4
+    np.savetxt(filename, data, fmt="%d")
 
 
 if __name__ == "__main__":

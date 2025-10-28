@@ -1,9 +1,10 @@
 import trimesh as trm
 import numpy as np
 import scipy
+from scipy.ndimage import convolve
 import meshgen.mesher as mesher
 
-from tqdm import tqdm  # Import tqdm
+from tqdm import tqdm  # progress bar for parallel ops
 from concurrent.futures import ProcessPoolExecutor
 
 
@@ -336,9 +337,13 @@ def split_mesh(mesh, voxel_size, n_segments):
     leading_direction = get_leading_direction(tuple(bounds[1] - bounds[0]))
 
     # Calculate the direction and increment for segmenting the mesh
-    segment_direction, segment_increment = calculate_segment_direction_and_increment(
-        leading_direction, voxel_size
-    )
+    # Use equal-sized chunks along the leading direction
+    segment_direction = np.zeros(3)
+    segment_direction[leading_direction] = 1.0
+    total_len = (bounds[1] - bounds[0])[leading_direction]
+    n_segments = max(1, int(n_segments))
+    step = total_len / n_segments if total_len > 0 else 0.0
+    segment_increment = segment_direction * step
 
     submeshes = []  # List to store the segmented parts of the mesh
     margins = []  # List to store the margin of each segment
@@ -355,9 +360,8 @@ def split_mesh(mesh, voxel_size, n_segments):
         sliced_bounds = sliced_segment.bounds
 
         # Calculate the margin for the current segment
-        margins.append(
-            calculate_margin(bounds, sliced_bounds, leading_direction) // voxel_size
-        )
+        m = np.floor(calculate_margin(bounds, sliced_bounds, leading_direction) / voxel_size)
+        margins.append(m.astype(int))
         submeshes.append(sliced_segment)
 
     return submeshes, margins
@@ -452,8 +456,12 @@ def calculate_voxel_size(mesh, res):
     maxima = [np.max(mesh.bounds[:, i]) - np.min(mesh.bounds[:, i]) for i in range(3)]
     h = np.max(maxima)
 
-    # Calculate the voxel size based on the maximum size and desired resolution
-    voxel_size = h / (128 * res)
+    # Choose pitch so the longest axis yields ~128*res cells.
+    # VoxelGrid commonly yields N = floor(extent / pitch) + 1 along an axis.
+    # Use (target-1) in the denominator to drive N ≈ target.
+    target = max(1, int(128 * res))
+    denom = max(1, target - 1)
+    voxel_size = h / denom
 
     return voxel_size
 
@@ -494,25 +502,18 @@ def process_submesh(submsh, margin, voxel_size, leading_direction):
     Returns:
     numpy.ndarray: A 3D array representing the processed and filled submesh segment.
     """
-    # Voxelizing the submesh without splitting
+    # Voxelize the submesh volume; do not fill here to avoid
+    # double-filling. We will fill once globally after stitching.
     voxelized_segment = voxelize_elementary(submsh, voxel_size)
 
-    # Completing the segment by adding necessary margins
+    # Embed with margins to align to global coordinates
     comp = complete_segment(voxelized_segment, margin.astype(int))
 
-    # Adjusting slicing based on the leading direction
-    if leading_direction == 0:
-        comp = comp[0, 1:-1, 1:-1]  # Slicing for the x-direction
-    elif leading_direction == 1:
-        comp = comp[1:-1, 0, 1:-1]  # Slicing for the y-direction
-    else:  # leading_direction == 2
-        comp = comp[1:-1, 1:-1, 0]  # Slicing for the z-direction
-
-    # Filling the slice for further processing
-    return fill_slice(comp, leading_direction)
+    # Return full 3D block (no collapsing)
+    return comp
 
 
-def voxelize_with_splitting(mesh, voxel_size, split, num_processes=1):
+def voxelize_with_splitting(mesh, voxel_size, split, num_processes=1, target_bounds=None):
     """
     Voxelizes a mesh with splitting along the leading direction.
 
@@ -533,6 +534,8 @@ def voxelize_with_splitting(mesh, voxel_size, split, num_processes=1):
     """
     # Determine the bounds of the mesh and identify the leading direction
     bounds = mesh.bounds
+    if target_bounds is None:
+        target_bounds = bounds
     leading_direction = get_leading_direction(tuple(bounds[1] - bounds[0]))
 
     # Split the mesh into segments along the leading direction
@@ -547,30 +550,26 @@ def voxelize_with_splitting(mesh, voxel_size, split, num_processes=1):
         # Collecting results with progress display
         comps = [future.result() for future in tqdm(futures, total=len(submeshes), desc="Voxelizing")]
 
-    # Concatenate the processed segments along the leading direction
+    # Concatenate the processed 3D blocks along the leading direction
     ary = np.concatenate(comps, axis=leading_direction)
 
-    # Adjust the concatenated array based on the leading direction
-    if leading_direction == 0:
-        ary = ary[1:-1, :, :]
-    elif leading_direction == 1:
-        ary = ary[:, 1:-1, :]
-    else:
-        ary = ary[:, :, 1:-1]
+    # Final fill to ensure watertightness after stitching
+    ary = fill_mesh_inside_surface(ary)
 
-    # Adjust edge layers based on the leading direction
-    if leading_direction == 0:
-        first_layer = fill_slice(ary[0, :, :], 0)
-        last_layer = fill_slice(ary[-1, :, :], 0)
-        ary = np.concatenate([first_layer, ary, last_layer], axis=0)
-    elif leading_direction == 1:
-        first_layer = fill_slice(ary[:, 0, :], 1)
-        last_layer = fill_slice(ary[:, -1, :], 1)
-        ary = np.concatenate([first_layer, ary, last_layer], axis=1)
-    else:  # leading_direction == 2
-        first_layer = fill_slice(ary[:, :, 0], 2)
-        last_layer = fill_slice(ary[:, :, -1], 2)
-        ary = np.concatenate([first_layer, ary, last_layer], axis=2)
+    # Normalize final shape to expected grid dimension derived from bounds and pitch
+    # Trimesh VoxelGrid yields N ≈ floor(extent/pitch) + 1 per axis
+    ext = (target_bounds[1] - target_bounds[0])
+    exp = (np.floor(ext / voxel_size).astype(int) + 1).tolist()
+    sx, sy, sz = ary.shape
+    tx, ty, tz = exp
+    # Crop or pad at the high end to match expected target dims
+    if sx >= tx and sy >= ty and sz >= tz:
+        ary = ary[:tx, :ty, :tz]
+    else:
+        nx, ny, nz = max(sx, tx), max(sy, ty), max(sz, tz)
+        tmp = np.zeros((nx, ny, nz), dtype=ary.dtype)
+        tmp[:sx, :sy, :sz] = ary
+        ary = tmp[:tx, :ty, :tz]
 
     return ary
 
@@ -597,9 +596,10 @@ def voxelize_mesh(name, res=1, split=None, num_processes=1, **kwargs):
     numpy.ndarray: The voxelized and adjusted mesh, suitable for LBM simulations.
     """
 
-    modified_kwargs = kwargs
+    modified_kwargs = dict(kwargs)
     modified_kwargs["resolution"] = res
 
+    # Generate STL using Gmsh into a temp working directory
     stl_file_path = mesher.gmsh_surface(name, True, **modified_kwargs)
 
     # Load the mesh from the specified path
@@ -619,13 +619,60 @@ def voxelize_mesh(name, res=1, split=None, num_processes=1, **kwargs):
         dx, dy, dz = bounds[1] - bounds[0]
 
         # Generate a box-shaped mesh based on the bounding box dimensions and voxel size
-        name = mesher.box_stl(name, x, y, z, dx, dy, dz, voxel_size)
-        boxed_mesh = trm.load(name)
+        boxed_stl_path = mesher.box_stl(stl_file_path, x, y, z, dx, dy, dz, voxel_size)
+        boxed_mesh = trm.load(boxed_stl_path)
 
         # Voxelize the mesh with splitting along the leading direction
-        output = voxelize_with_splitting(boxed_mesh, voxel_size, split, num_processes=num_processes)
+        output = voxelize_with_splitting(boxed_mesh, voxel_size, split, num_processes=num_processes, target_bounds=bounds)
 
     return output
+
+
+def voxelize_stl(path, res=1, split=None, num_processes=1):
+    """
+    Voxelize a closed STL surface directly, with optional splitting.
+
+    Parameters:
+    - path: path to the input STL file (must be closed/watertight for correct filling).
+    - res: resolution scale; longest axis ~ 128*res voxels.
+    - split: if None, voxelize as a single mesh; otherwise, split into this many segments
+             along the leading direction and process in parallel.
+    - num_processes: parallel workers when splitting.
+
+    Returns:
+    - numpy.ndarray of dtype bool containing occupancy (True=inside/solid)
+    """
+    # Load mesh (handle scenes by concatenation)
+    mesh = trm.load(path)
+    if isinstance(mesh, trm.Scene):
+        mesh = trm.util.concatenate(tuple(mesh.geometry.values()))
+
+    # Ensure watertight surface if possible
+    if hasattr(mesh, "is_watertight") and not mesh.is_watertight:
+        try:
+            # Attempt a lightweight repair; ignore failures
+            trm.repair.fix_normals(mesh)
+            trm.repair.fix_winding(mesh)
+            trm.repair.fill_holes(mesh)
+        except Exception:
+            pass
+
+    voxel_size = calculate_voxel_size(mesh, res)
+
+    if split is None:
+        occ = voxelize_elementary(mesh, voxel_size)
+        occ = fill_mesh_inside_surface(occ)
+        return occ
+
+    # For splitting, create a boxed STL around original to ensure robust plane slicing
+    bounds = mesh.bounds
+    x, y, z = bounds[0]
+    dx, dy, dz = bounds[1] - bounds[0]
+
+    boxed_stl_path = mesher.box_stl(path, float(x), float(y), float(z), float(dx), float(dy), float(dz), voxel_size)
+    boxed_mesh = trm.load(boxed_stl_path)
+
+    return voxelize_with_splitting(boxed_mesh, voxel_size, split, num_processes=num_processes, target_bounds=bounds)
 
 
 def generate_lbm_mesh(original_mesh, expected_in_outs=None):
@@ -635,133 +682,89 @@ def generate_lbm_mesh(original_mesh, expected_in_outs=None):
 
 
 def label_elements(original_mesh, expected_in_outs=None, num_type='bool'):
-    if num_type == 'int':
-        original_mesh = original_mesh.astype(int)
+    """Convert an occupancy grid into labeled volume semantics.
 
-    labeled_mesh = original_mesh.copy()
-    labeled_mesh[labeled_mesh == 0] = 2
+    Semantics:
+    - 0 = empty/outside
+    - 1 = fluid/interior (occupancy)
+    - 2 = wall/solid (one-voxel layer outside the fluid along solid boundaries)
+    - 11..16 = optional domain wall tags on the fluid layer for N,E,S,W,B,F
 
+    Notes:
+    - This function is intentionally vectorized; no per-voxel Python loops.
+    - The input may be boolean (occupancy) or integer with 0/1 values.
+    """
+    # Normalize input to boolean occupancy for processing
+    occ = (original_mesh > 0)
+
+    # Start with zeros (outside/empty)
+    labeled = np.zeros(occ.shape, dtype=int)
+    # Mark interior fluid
+    labeled[occ] = 1
+
+    # Derive a 1-voxel solid shell surrounding fluid: outside cells that neighbor fluid
+    kernel = np.ones((3, 3, 3), dtype=int)
+    kernel[1, 1, 1] = 0
+    # Count fluid neighbors for every cell
+    fluid_nbrs = convolve(occ.astype(int), kernel, mode="constant", cval=0)
+    solid_shell = (~occ) & (fluid_nbrs > 0)
+    labeled[solid_shell] = 2
+
+    # Optional domain wall tags: apply to the fluid layer on specific domain faces
     if expected_in_outs is None:
         expected_in_outs = {}
 
-    # Apply the wall labeling conditions
     if 'N' in expected_in_outs:
-        # North wall (z maximum)
-        labeled_mesh[:, :, -1][labeled_mesh[:, :, -1] == 1] = 11
-
+        labeled[:, :, -1][labeled[:, :, -1] == 1] = 11
     if 'E' in expected_in_outs:
-        # East wall (x maximum)
-        labeled_mesh[-1, :, :][labeled_mesh[-1, :, :] == 1] = 12
-
+        labeled[-1, :, :][labeled[-1, :, :] == 1] = 12
     if 'S' in expected_in_outs:
-        # South wall (z = 0)
-        labeled_mesh[:, :, 0][labeled_mesh[:, :, 0] == 1] = 13
-
+        labeled[:, :, 0][labeled[:, :, 0] == 1] = 13
     if 'W' in expected_in_outs:
-        # West wall (x = 0)
-        labeled_mesh[0, :, :][labeled_mesh[0, :, :] == 1] = 14
-
+        labeled[0, :, :][labeled[0, :, :] == 1] = 14
     if 'B' in expected_in_outs:
-        # Back wall (y maximum)
-        labeled_mesh[:, -1, :][labeled_mesh[:, -1, :] == 1] = 15
-
+        labeled[:, -1, :][labeled[:, -1, :] == 1] = 15
     if 'F' in expected_in_outs:
-        # Front wall (y = 0)
-        labeled_mesh[:, 0, :][labeled_mesh[:, 0, :] == 1] = 16
+        labeled[:, 0, :][labeled[:, 0, :] == 1] = 16
 
-    return labeled_mesh
+    # If integer labels explicitly requested, ensure dtype matches
+    if num_type == 'int' and labeled.dtype != int:
+        labeled = labeled.astype(int)
+
+    return labeled
 
 
 def assign_near_walls(original_mesh):
-    # Copy the original array to avoid modifying it directly
+    """Label fluid cells (1) that neighbor walls (2) as 3 using 3D convolution."""
     updated_mesh = original_mesh.copy()
-
-    # Get the shape of the 3D array
-    x_max, y_max, z_max = original_mesh.shape
-
-    # Define the offsets for the 26 neighboring cells
-    neighbors = [(i, j, k)
-                 for i in [-1, 0, 1]
-                 for j in [-1, 0, 1]
-                 for k in [-1, 0, 1]
-                 if (i, j, k) != (0, 0, 0)]
-
-    # Iterate through each cell in the array
-    for x in range(1, x_max - 1):
-        for y in range(1, y_max - 1):
-            for z in range(1, z_max - 1):
-                # Check if the current cell is fluid (1)
-                if original_mesh[x, y, z] == 1:
-                    # Check all 26 neighbors
-                    for dx, dy, dz in neighbors:
-                        nx, ny, nz = x + dx, y + dy, z + dz
-                        # If any neighbor is wall (2), label the cell as near-wall (3)
-                        if original_mesh[nx, ny, nz] == 2:
-                            updated_mesh[x, y, z] = 3
-                            continue
-
+    # 3x3x3 kernel with zero center to count 26-neighborhood
+    kernel = np.ones((3, 3, 3), dtype=int)
+    kernel[1, 1, 1] = 0
+    wall_neighbors = convolve((original_mesh == 2).astype(int), kernel, mode="constant", cval=0) > 0
+    mask = (original_mesh == 1) & wall_neighbors
+    updated_mesh[mask] = 3
     return updated_mesh
 
 
 def assign_near_near_walls(original_mesh):
-    # Copy the original array to avoid modifying it directly
+    """Label fluid cells (1) that neighbor label 3 as 4 using 3D convolution."""
     updated_mesh = original_mesh.copy()
-
-    # Get the shape of the 3D array
-    x_max, y_max, z_max = original_mesh.shape
-
-    # Define the offsets for the 26 neighboring cells
-    neighbors = [(i, j, k)
-                 for i in [-1, 0, 1]
-                 for j in [-1, 0, 1]
-                 for k in [-1, 0, 1]
-                 if (i, j, k) != (0, 0, 0)]
-
-    # Iterate through each cell in the array
-    for x in range(1, x_max - 1):
-        for y in range(1, y_max - 1):
-            for z in range(1, z_max - 1):
-                # Check if the current cell is fluid (1)
-                if original_mesh[x, y, z] == 1:
-                    # Check all 26 neighbors
-                    for dx, dy, dz in neighbors:
-                        nx, ny, nz = x + dx, y + dy, z + dz
-                        # If any neighbor is wall (2), label the cell as near-wall (3)
-                        if original_mesh[nx, ny, nz] == 3:
-                            updated_mesh[x, y, z] = 4
-                            continue
-
+    kernel = np.ones((3, 3, 3), dtype=int)
+    kernel[1, 1, 1] = 0
+    near_neighbors = convolve((original_mesh == 3).astype(int), kernel, mode="constant", cval=0) > 0
+    mask = (original_mesh == 1) & near_neighbors
+    updated_mesh[mask] = 4
     return updated_mesh
 
 
 def assign_near_near_near_walls(original_mesh):
-    # Copy the original array to avoid modifying it directly
+    """Label fluid cells (1) that neighbor label 4 as 5 using 3D convolution."""
     updated_mesh = original_mesh.copy()
-
-    # Get the shape of the 3D array
-    x_max, y_max, z_max = original_mesh.shape
-
-    # Define the offsets for the 26 neighboring cells
-    neighbors = [(i, j, k)
-                 for i in [-1, 0, 1]
-                 for j in [-1, 0, 1]
-                 for k in [-1, 0, 1]
-                 if (i, j, k) != (0, 0, 0)]
-
-    # Iterate through each cell in the array
-    for x in range(1, x_max - 1):
-        for y in range(1, y_max - 1):
-            for z in range(1, z_max - 1):
-                # Check if the current cell is fluid (1)
-                if original_mesh[x, y, z] == 1:
-                    # Check all 26 neighbors
-                    for dx, dy, dz in neighbors:
-                        nx, ny, nz = x + dx, y + dy, z + dz
-                        # If any neighbor is wall (2), label the cell as near-wall (3)
-                        if original_mesh[nx, ny, nz] == 4:
-                            updated_mesh[x, y, z] = 5
-                            continue
-
+    kernel = np.ones((3, 3, 3), dtype=int)
+    kernel[1, 1, 1] = 0
+    nnear_neighbors = convolve((original_mesh == 4).astype(int), kernel, mode="constant", cval=0) > 0
+    mask = (original_mesh == 1) & nnear_neighbors
+    updated_mesh[mask] = 5
     return updated_mesh
 
 
@@ -804,29 +807,11 @@ def add_additional_wall_layer(mesh, direction, value=2):
         new_layer = np.full((1, mesh.shape[1], mesh.shape[2]), value)
         return np.concatenate((new_layer, mesh), axis=0)
     elif direction == 'B':  # y maximum
-        new_mesh = np.full((mesh.shape[0], mesh.shape[1] + 2, mesh.shape[2]), 2)
-
-        new_mesh[
-            :,
-            :-2,
-            :,
-        ] = mesh
-
-        print(new_mesh.shape)
-
-        return new_mesh
+        new_layer = np.full((mesh.shape[0], 1, mesh.shape[2]), value)
+        return np.concatenate((mesh, new_layer), axis=1)
     elif direction == 'F':  # y = 0
-        new_mesh = np.full((mesh.shape[0], mesh.shape[1] + 2, mesh.shape[2]), 2)
-
-        new_mesh[
-        :,
-        2:,
-        :,
-        ] = mesh
-
-        print(new_mesh.shape)
-
-        return new_mesh
+        new_layer = np.full((mesh.shape[0], 1, mesh.shape[2]), value)
+        return np.concatenate((new_layer, mesh), axis=1)
     else:
         raise ValueError("Direction must be one of 'N', 'E', 'S', 'W', 'B', 'F'.")
 

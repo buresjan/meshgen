@@ -1,0 +1,16 @@
+name: meshgen
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - numpy
+  - scipy
+  - trimesh
+  - gmsh
+  - mayavi
+  - vtk
+  - pyqt
+  - tqdm
+  - pip
+  - pip:
+      - -e .
