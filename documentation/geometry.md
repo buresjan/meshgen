@@ -89,19 +89,19 @@ geom.generate_voxel_mesh()
 geom.save_voxel_mesh_to_text("glenn_capped.txt")
 ```
 
-### 3) Parallel splitting for large models
+### 3) Split parameter (API compatibility)
 
 ```python
 geom = Geometry(
     stl_path="big_model.stl",
     resolution=2,
-    split=6,            # segments along the leading axis
-    num_processes=6,    # parallel workers
+    split=6,            # accepted for API compatibility
+    num_processes=6,    # accepted for API compatibility
 )
-geom.generate_voxel_mesh()
+geom.generate_voxel_mesh()  # output matches the no‑split path exactly
 ```
 
 Notes:
 - Both routes yield the same text triplet and label semantics.
+- The current implementation ensures equivalence by computing a single global voxelization; `split` does not change the output or parallelize the voxelization itself.
 - For best STL results, ensure watertightness. Minor repairs are attempted automatically.
-

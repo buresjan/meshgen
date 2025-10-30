@@ -19,11 +19,11 @@ This toolkit generates and voxelizes 3D geometries from either parametric `.geo`
 - `STL → voxels` (direct route)
   - Load a closed (watertight) STL and voxelize/fill directly. Absolute and relative STL paths are accepted.
 
-Equivalence: Both routes produce the same simulation-ready output format and label semantics. Choose `.geo` for parametric design; choose STL for existing surfaces (e.g., scans or CAD exports).
+Equivalence: Both routes produce the same simulation-ready output format and label semantics. Choose `.geo` for parametric design; choose STL for existing surfaces (e.g., scans or CAD exports). When `split` is provided, the output remains identical to the no‑split path by design.
 
 Important details:
 - Characteristic length: If a `.geo` template contains `DEFINE_H` and you do not pass `h`, it is inferred from `resolution` using `h ≈ max(1e-4, 1e-3 / resolution)`.
-- Splitting: When `split` is used, the mesh is segmented along the leading axis into full 3D blocks. Each block is voxelized independently, stitched along the leading axis, and a single global fill is applied once at the end. This preserves equivalence to the single‑pass, no‑split result.
+- Splitting: To guarantee exact equivalence with the no‑split result and Trimesh’s global voxelization, the current implementation performs a single‑pass voxelization and normalizes shape to the expected grid; `split`/`num_processes` are accepted for API compatibility but do not parallelize the voxelization step.
 - Watertightness: The STL route expects a closed surface; a light repair is attempted (normals/winding and hole filling via trimesh) but you should supply closed inputs for reliable filling.
 
 ## Requirements
@@ -171,12 +171,11 @@ When exporting text, missing domain faces are padded by a single wall layer to e
 
 ## Splitting & Parallelization
 
-- `split=<int>` divides the mesh along the leading axis and processes segments with `num_processes` workers.
-- Each segment is voxelized as a full 3D block; segments are stitched along the leading axis; a global fill is applied once at the end.
-- Shapes are normalized to the expected target derived from bounds and pitch so split and no‑split runs match.
+- `split=<int>` and `num_processes` are accepted for API compatibility. To ensure exact equivalence of the voxel grid with Trimesh’s global voxelization, the current implementation computes a single global voxelization and normalizes shape; `split` does not change the output and does not parallelize the voxelization itself.
+- Shapes are normalized to the expected target derived from bounds and pitch so split and no‑split runs match exactly.
 - For large models, start with small `resolution` (1–2) before scaling up.
 
-Pitch and shape: The voxel pitch is chosen so the longest axis approximates `128 * resolution` cells. Trimesh’s VoxelGrid yields `N ≈ floor(extent / pitch) + 1` per axis; we set pitch from the longest extent to achieve the target and then normalize stitched shapes to match the expected dims.
+Pitch and shape: The voxel pitch is chosen so the longest axis approximates `128 * resolution` cells. Trimesh’s VoxelGrid yields `N ≈ ceil(extent / pitch) + 1` per axis; we set pitch from the longest extent to achieve the target and then normalize results to match the expected dims.
 
 LBM shape normalization: For LBM grid completion, the leading dimension must be a multiple of 128; the remaining dimensions are rounded up to the nearest multiple of 32.
 

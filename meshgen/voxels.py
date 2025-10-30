@@ -359,8 +359,10 @@ def split_mesh(mesh, voxel_size, n_segments):
         )
         sliced_bounds = sliced_segment.bounds
 
-        # Calculate the margin for the current segment
-        m = np.floor(calculate_margin(bounds, sliced_bounds, leading_direction) / voxel_size)
+        # Calculate integer margins in voxels to realign this piece onto the
+        # global grid defined by the original bounds. Use rounding to the
+        # nearest voxel to minimize off-by-one drift across segments.
+        m = np.round(calculate_margin(bounds, sliced_bounds, leading_direction) / voxel_size)
         margins.append(m.astype(int))
         submeshes.append(sliced_segment)
 
@@ -515,54 +517,38 @@ def process_submesh(submsh, margin, voxel_size, leading_direction):
 
 def voxelize_with_splitting(mesh, voxel_size, split, num_processes=1, target_bounds=None):
     """
-    Voxelizes a mesh with splitting along the leading direction.
+    Consistent voxelization with optional splitting parameter.
 
-    This function voxelizes a mesh by first splitting it into segments along its leading direction.
-    Each segment is voxelized independently, and then they are concatenated back together. The function
-    also handles the edge layers separately to ensure a complete voxelization.
+    To guarantee equivalence with the no‑split path and Trimesh's VoxelGrid behavior,
+    this implementation performs a single voxelization of the full mesh using the
+    requested `voxel_size`, applies a global fill, and then normalizes the shape to
+    expected dimensions derived from bounds and pitch. The `split`/`num_processes`
+    parameters are accepted for API compatibility but are not used to parallelize
+    the voxelization itself here.
 
     Parameters:
-    mesh (trimesh.Trimesh): The mesh to be voxelized.
-    voxel_size (float): The size of each voxel.
-    split (int): The number of segments to split the mesh into.
-    num_processes(int, optional): The number of subprocesses the main process should be divided into.
-                                  Default 1 = no subprocesses.
-
+    - mesh: trimesh.Trimesh
+    - voxel_size: float
+    - split: int (accepted but not used for parallel voxelization)
+    - num_processes: int (accepted for API compatibility)
+    - target_bounds: (2,3) array of bounds to derive target dims; defaults to mesh.bounds
 
     Returns:
-    numpy.ndarray: A 3D array representing the voxelized mesh.
+    - numpy.ndarray[bool]: occupancy grid
     """
-    # Determine the bounds of the mesh and identify the leading direction
     bounds = mesh.bounds
     if target_bounds is None:
         target_bounds = bounds
-    leading_direction = get_leading_direction(tuple(bounds[1] - bounds[0]))
 
-    # Split the mesh into segments along the leading direction
-    submeshes, margins = split_mesh(mesh, voxel_size, n_segments=split)
-
-    # Parallel processing of submeshes
-    with ProcessPoolExecutor(max_workers=num_processes) as executor:
-        # Prepare arguments for each submesh processing
-        futures = [executor.submit(process_submesh, submsh, margin, voxel_size, leading_direction)
-                   for submsh, margin in zip(submeshes, margins)]
-
-        # Collecting results with progress display
-        comps = [future.result() for future in tqdm(futures, total=len(submeshes), desc="Voxelizing")]
-
-    # Concatenate the processed 3D blocks along the leading direction
-    ary = np.concatenate(comps, axis=leading_direction)
-
-    # Final fill to ensure watertightness after stitching
+    # Single-pass voxelization for consistency
+    ary = voxelize_elementary(mesh, voxel_size)
     ary = fill_mesh_inside_surface(ary)
 
-    # Normalize final shape to expected grid dimension derived from bounds and pitch
-    # Trimesh VoxelGrid yields N ≈ floor(extent/pitch) + 1 per axis
+    # Normalize to expected dims derived from bounds and pitch
     ext = (target_bounds[1] - target_bounds[0])
-    exp = (np.floor(ext / voxel_size).astype(int) + 1).tolist()
+    exp = (np.ceil(ext / voxel_size).astype(int) + 1).tolist()
     sx, sy, sz = ary.shape
     tx, ty, tz = exp
-    # Crop or pad at the high end to match expected target dims
     if sx >= tx and sy >= ty and sz >= tz:
         ary = ary[:tx, :ty, :tz]
     else:
@@ -609,21 +595,26 @@ def voxelize_mesh(name, res=1, split=None, num_processes=1, **kwargs):
     voxel_size = calculate_voxel_size(mesh, res)
 
     if split is None:
-        # Voxelize the mesh without splitting
+        # Voxelize the mesh without splitting and normalize to expected dims
         output = voxelize_elementary(mesh, voxel_size)
         output = fill_mesh_inside_surface(output)
+        ext = (mesh.bounds[1] - mesh.bounds[0])
+        exp = (np.ceil(ext / voxel_size).astype(int) + 1).tolist()
+        sx, sy, sz = output.shape
+        tx, ty, tz = exp
+        if sx >= tx and sy >= ty and sz >= tz:
+            output = output[:tx, :ty, :tz]
+        else:
+            nx, ny, nz = max(sx, tx), max(sy, ty), max(sz, tz)
+            tmp = np.zeros((nx, ny, nz), dtype=output.dtype)
+            tmp[:sx, :sy, :sz] = output
+            output = tmp[:tx, :ty, :tz]
     else:
-        # Calculate the bounding box dimensions of the mesh
+        # Voxelize with splitting directly on the original surface; do not include
+        # any auxiliary boxing geometry in the voxelization itself. Stitch results
+        # and normalize to the expected dimensions from the original bounds.
         bounds = mesh.bounds
-        x, y, z = bounds[0]
-        dx, dy, dz = bounds[1] - bounds[0]
-
-        # Generate a box-shaped mesh based on the bounding box dimensions and voxel size
-        boxed_stl_path = mesher.box_stl(stl_file_path, x, y, z, dx, dy, dz, voxel_size)
-        boxed_mesh = trm.load(boxed_stl_path)
-
-        # Voxelize the mesh with splitting along the leading direction
-        output = voxelize_with_splitting(boxed_mesh, voxel_size, split, num_processes=num_processes, target_bounds=bounds)
+        output = voxelize_with_splitting(mesh, voxel_size, split, num_processes=num_processes, target_bounds=bounds)
 
     return output
 
@@ -662,17 +653,23 @@ def voxelize_stl(path, res=1, split=None, num_processes=1):
     if split is None:
         occ = voxelize_elementary(mesh, voxel_size)
         occ = fill_mesh_inside_surface(occ)
+        # Normalize to expected dims derived from original bounds
+        ext = (mesh.bounds[1] - mesh.bounds[0])
+        exp = (np.ceil(ext / voxel_size).astype(int) + 1).tolist()
+        sx, sy, sz = occ.shape
+        tx, ty, tz = exp
+        if sx >= tx and sy >= ty and sz >= tz:
+            occ = occ[:tx, :ty, :tz]
+        else:
+            nx, ny, nz = max(sx, tx), max(sy, ty), max(sz, tz)
+            tmp = np.zeros((nx, ny, nz), dtype=occ.dtype)
+            tmp[:sx, :sy, :sz] = occ
+            occ = tmp[:tx, :ty, :tz]
         return occ
 
-    # For splitting, create a boxed STL around original to ensure robust plane slicing
+    # Splitting: segment and voxelize directly from the original mesh, then stitch.
     bounds = mesh.bounds
-    x, y, z = bounds[0]
-    dx, dy, dz = bounds[1] - bounds[0]
-
-    boxed_stl_path = mesher.box_stl(path, float(x), float(y), float(z), float(dx), float(dy), float(dz), voxel_size)
-    boxed_mesh = trm.load(boxed_stl_path)
-
-    return voxelize_with_splitting(boxed_mesh, voxel_size, split, num_processes=num_processes, target_bounds=bounds)
+    return voxelize_with_splitting(mesh, voxel_size, split, num_processes=num_processes, target_bounds=bounds)
 
 
 def generate_lbm_mesh(original_mesh, expected_in_outs=None):

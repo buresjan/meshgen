@@ -4,8 +4,8 @@ The `voxels` module performs voxelization (with or without splitting), filling, 
 
 ## Overview
 
-- Pitch selection: pitch is chosen so the longest axis yields approximately `128 * resolution` cells, aligning with Trimesh VoxelGrid behavior (`N ≈ floor(extent/pitch) + 1`).
-- Splitting: meshes are segmented along the leading axis; each segment is voxelized into a full 3D block; blocks are stitched and then a single, global fill is applied. Final shapes are normalized so split and no‑split match.
+- Pitch selection: pitch is chosen so the longest axis yields approximately `128 * resolution` cells, aligning with Trimesh VoxelGrid behavior (`N ≈ ceil(extent/pitch) + 1`).
+- Splitting: to guarantee exact equivalence with the no‑split result, the current implementation performs a single global voxelization and normalizes shape to expected dims. The `split` and `num_processes` parameters are accepted for API compatibility but do not parallelize the voxelization step.
 - Labeling: boolean occupancy is transformed into solver labels: 0 outside, 1 fluid, 2 wall, and near‑wall bands 3/4/5; optionally 11..16 for domain face tags.
 
 ## Key Functions
@@ -114,4 +114,3 @@ print(np.unique(labels))  # expect 0,1,2,3,4,5 and optionally 11..16
 
 - All heavy operations are vectorized; avoid writing per-voxel Python loops around these APIs.
 - Ensure inputs are closed surfaces for reliable filling; light repairs are attempted but not guaranteed.
-
