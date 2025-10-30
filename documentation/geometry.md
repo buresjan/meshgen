@@ -107,3 +107,4 @@ Notes:
 - Both routes yield the same text triplet and label semantics.
 - The current implementation ensures equivalence by computing a single global voxelization; `split` does not change the output or parallelize the voxelization itself.
 - For best STL results, ensure watertightness. Minor repairs are attempted automatically.
+- Installation uses `pyproject.toml`; use `pip install -e .` (pip ≥ 21) to get an editable checkout.

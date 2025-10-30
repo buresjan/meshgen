@@ -82,6 +82,10 @@ pip install numpy scipy trimesh gmsh mayavi tqdm
 
 If you only rely on the STL route you may skip installing `gmsh`.
 
+Notes:
+- The project now ships a `pyproject.toml`; ensure you are using `pip >= 21` so editable installs work with the PEP 517 backend.
+- Add `.[dev]` to pick up optional development dependencies (e.g., `pip install -e .[dev]` for Black).
+
 ## Usage
 
 Here is a quick example of how to use the `Geometry` class to generate, voxelize, and visualize a 3D geometry.

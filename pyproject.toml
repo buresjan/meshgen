@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "meshgen"
+version = "0.1.0"
+description = "Mesh Generation and Voxelization Toolkit"
+readme = "README.md"
+authors = [
+  { name = "Jan Bureš" }
+]
+license = { file = "LICENSE" }
+requires-python = ">=3.8"
+dependencies = [
+  "numpy",
+  "scipy",
+  "trimesh",
+  "gmsh",
+  "mayavi",
+  "tqdm",
+]
+
+[project.optional-dependencies]
+dev = [
+  "black",
+]
+
+[project.urls]
+Homepage = "https://github.com/buresjan/meshgen"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+[tool.setuptools.package-data]
+meshgen = [
+  "geo_templates/*.geo",
+  "geo_templates/*/*.geo",
+  "stl_models/*.stl",
+  "stl_models/*/*.stl",
+]

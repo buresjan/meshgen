@@ -60,4 +60,4 @@ array_to_textfile(labels, "output/geom_example.txt")
 
 Notes:
 - Pair the geometry file with a `dim_*.txt` file containing `Nx Ny Nz` and an empty `val_*.txt` for the expected triplet format.
-
+- The package metadata lives in `pyproject.toml`; install with `pip install -e .` (pip ≥ 21) for editable development.
