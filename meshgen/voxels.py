@@ -1,11 +1,47 @@
 import trimesh as trm
 import numpy as np
 import scipy
-from scipy.ndimage import convolve
+from scipy.ndimage import convolve, binary_dilation
 import meshgen.mesher as mesher
 
 from tqdm import tqdm  # progress bar for parallel ops
 from concurrent.futures import ProcessPoolExecutor
+
+
+def _segment_worker(args):
+    """
+    Voxelize a mesh segment and return global lattice indices.
+
+    Parameters
+    ----------
+    args : tuple
+        (submesh, voxel_size, bounds_min, target_shape)
+
+    Returns
+    -------
+    numpy.ndarray
+        Array of shape (N, 3) with integer indices in the global lattice.
+    """
+    submesh, voxel_size, bounds_min, target_shape = args
+
+    if submesh is None or len(submesh.faces) == 0:
+        return np.zeros((0, 3), dtype=int)
+
+    vg = submesh.voxelized(voxel_size)
+    sparse = vg.sparse_indices
+    if sparse.size == 0:
+        return np.zeros((0, 3), dtype=int)
+
+    centers = vg.indices_to_points(sparse)
+    # Map voxel centers to global lattice indices relative to the original mesh bounds.
+    bounds_min = np.asarray(bounds_min, dtype=float)
+    rel = (centers - bounds_min) / voxel_size
+    global_indices = np.rint(rel).astype(int)
+    if target_shape is not None:
+        max_idx = np.asarray(target_shape, dtype=int) - 1
+        min_idx = np.zeros_like(max_idx)
+        global_indices = np.clip(global_indices, min_idx, max_idx)
+    return global_indices
 
 
 def load_mesh(path):
@@ -315,56 +351,61 @@ def slice_mesh(mesh, direction, plane_origin, increment):
 
 def split_mesh(mesh, voxel_size, n_segments):
     """
-    Split a mesh into several segments along its leading direction.
+    Split a mesh into segments along the leading axis using face intersections.
 
-    This function divides a given mesh into a specified number of segments, ensuring that each
-    segment has a uniform size along the mesh's leading direction. The leading direction is
-    determined based on the mesh bounds. The function calculates the direction and increment
-    for segmenting, then slices the mesh accordingly, and computes margins for each segment.
+    Faces intersecting a segment range are included (with overlap) to avoid gaps at
+    boundaries. No geometric slicing is performed, which keeps the implementation
+    free of additional dependencies such as Shapely.
 
-    Parameters:
-    mesh (trimesh.Trimesh): The mesh to be split.
-    voxel_size (int): The size of a single voxel, used in calculating margins.
-    n_segments (int): The number of segments to divide the mesh into.
+    Parameters
+    ----------
+    mesh : trimesh.Trimesh
+        The mesh to segment.
+    voxel_size : float
+        Voxel pitch (unused directly but retained for API symmetry).
+    n_segments : int
+        Number of desired segments along the leading axis.
 
-    Returns:
-    tuple: A tuple containing two lists -
-           1. submeshes: a list of trimesh.Trimesh objects, each representing a segment.
-           2. margins: a list of integers, each representing the margin of a corresponding segment.
+    Returns
+    -------
+    tuple[list[trimesh.Trimesh], list[np.ndarray]]
+        Submeshes and dummy margin placeholders (zeros).
     """
-    # Determine the bounds of the mesh and identify the leading direction
     bounds = mesh.bounds
     leading_direction = get_leading_direction(tuple(bounds[1] - bounds[0]))
-
-    # Calculate the direction and increment for segmenting the mesh
-    # Use equal-sized chunks along the leading direction
-    segment_direction = np.zeros(3)
-    segment_direction[leading_direction] = 1.0
-    total_len = (bounds[1] - bounds[0])[leading_direction]
     n_segments = max(1, int(n_segments))
-    step = total_len / n_segments if total_len > 0 else 0.0
-    segment_increment = segment_direction * step
 
-    submeshes = []  # List to store the segmented parts of the mesh
-    margins = []  # List to store the margin of each segment
+    axis_min = bounds[0, leading_direction]
+    axis_max = bounds[1, leading_direction]
+    if axis_max <= axis_min:
+        # Degenerate extent; return original mesh as a single segment.
+        return [mesh.copy()], [np.zeros((3, 2), dtype=int)]
 
-    # Iterate over the number of segments to split the mesh
-    for i in range(n_segments):
-        # Calculate the origin for slicing the mesh
-        plane_origin = bounds[0] + i * segment_increment
+    edges = np.linspace(axis_min, axis_max, n_segments + 1)
+    # Precompute per-face bounds along the leading axis
+    tri_vertices = mesh.vertices[mesh.faces]
+    tri_min = tri_vertices[:, :, leading_direction].min(axis=1)
+    tri_max = tri_vertices[:, :, leading_direction].max(axis=1)
 
-        # Slice the mesh to create a segment
-        sliced_segment = slice_mesh(
-            mesh, segment_direction, plane_origin, segment_increment
-        )
-        sliced_bounds = sliced_segment.bounds
+    submeshes = []
+    margins = []
+    epsilon = 1e-9
 
-        # Calculate integer margins in voxels to realign this piece onto the
-        # global grid defined by the original bounds. Use rounding to the
-        # nearest voxel to minimize off-by-one drift across segments.
-        m = np.round(calculate_margin(bounds, sliced_bounds, leading_direction) / voxel_size)
-        margins.append(m.astype(int))
-        submeshes.append(sliced_segment)
+    for start, end in zip(edges[:-1], edges[1:]):
+        mask = (tri_max >= start - epsilon) & (tri_min <= end + epsilon)
+        if not np.any(mask):
+            empty = trm.Trimesh(
+                vertices=np.empty((0, 3)),
+                faces=np.empty((0, 3), dtype=int),
+                process=False,
+            )
+            submeshes.append(empty)
+            margins.append(np.zeros((3, 2), dtype=int))
+            continue
+
+        segment = mesh.submesh([mask], append=True, repair=False)
+        submeshes.append(segment)
+        margins.append(np.zeros((3, 2), dtype=int))
 
     return submeshes, margins
 
@@ -517,47 +558,98 @@ def process_submesh(submsh, margin, voxel_size, leading_direction):
 
 def voxelize_with_splitting(mesh, voxel_size, split, num_processes=1, target_bounds=None):
     """
-    Consistent voxelization with optional splitting parameter.
+    Voxelize a surface by segmenting along the leading axis and stitching results.
 
-    To guarantee equivalence with the no‑split path and Trimesh's VoxelGrid behavior,
-    this implementation performs a single voxelization of the full mesh using the
-    requested `voxel_size`, applies a global fill, and then normalizes the shape to
-    expected dimensions derived from bounds and pitch. The `split`/`num_processes`
-    parameters are accepted for API compatibility but are not used to parallelize
-    the voxelization itself here.
+    Each segment is voxelized independently (optionally in parallel) and converted
+    to global lattice indices. Segments are stitched into a single occupancy grid,
+    the interior is filled once globally, and the shape is normalized to match the
+    Trimesh VoxelGrid behavior (`ceil(extent / voxel_size) + 1` per axis).
 
-    Parameters:
-    - mesh: trimesh.Trimesh
-    - voxel_size: float
-    - split: int (accepted but not used for parallel voxelization)
-    - num_processes: int (accepted for API compatibility)
-    - target_bounds: (2,3) array of bounds to derive target dims; defaults to mesh.bounds
+    Parameters
+    ----------
+    mesh : trimesh.Trimesh
+        Surface mesh to voxelize.
+    voxel_size : float
+        Target lattice pitch.
+    split : int
+        Number of segments along the leading axis (values <= 1 fall back to single pass).
+    num_processes : int
+        Parallel workers for segment voxelization.
+    target_bounds : ndarray | None
+        Optional bounds to derive the expected dimensions; defaults to mesh.bounds.
 
-    Returns:
-    - numpy.ndarray[bool]: occupancy grid
+    Returns
+    -------
+    numpy.ndarray
+        Boolean occupancy grid with filled interior.
     """
-    bounds = mesh.bounds
     if target_bounds is None:
-        target_bounds = bounds
+        target_bounds = mesh.bounds
 
-    # Single-pass voxelization for consistency
-    ary = voxelize_elementary(mesh, voxel_size)
-    ary = fill_mesh_inside_surface(ary)
-
-    # Normalize to expected dims derived from bounds and pitch
-    ext = (target_bounds[1] - target_bounds[0])
-    exp = (np.ceil(ext / voxel_size).astype(int) + 1).tolist()
-    sx, sy, sz = ary.shape
-    tx, ty, tz = exp
-    if sx >= tx and sy >= ty and sz >= tz:
-        ary = ary[:tx, :ty, :tz]
-    else:
+    if split is None or split <= 1:
+        ary = voxelize_elementary(mesh, voxel_size)
+        ary = fill_mesh_inside_surface(ary)
+        ext = (target_bounds[1] - target_bounds[0])
+        exp = (np.ceil(ext / voxel_size).astype(int) + 1).tolist()
+        sx, sy, sz = ary.shape
+        tx, ty, tz = exp
+        if sx >= tx and sy >= ty and sz >= tz:
+            return ary[:tx, :ty, :tz]
         nx, ny, nz = max(sx, tx), max(sy, ty), max(sz, tz)
         tmp = np.zeros((nx, ny, nz), dtype=ary.dtype)
         tmp[:sx, :sy, :sz] = ary
-        ary = tmp[:tx, :ty, :tz]
+        return tmp[:tx, :ty, :tz]
 
-    return ary
+    ext = (target_bounds[1] - target_bounds[0])
+    target_shape = np.ceil(ext / voxel_size).astype(int) + 1
+    target_shape = target_shape.astype(int)
+    bounds_min = np.asarray(target_bounds[0], dtype=float)
+
+    n_segments = max(1, int(split))
+    submeshes, _ = split_mesh(mesh, voxel_size, n_segments)
+
+    occupancy = np.zeros(tuple(target_shape), dtype=bool)
+
+    segment_args = [(sub, voxel_size, bounds_min, target_shape) for sub in submeshes]
+    total_segments = len(segment_args)
+
+    def _accumulate(indices):
+        if indices.size == 0:
+            return
+        mask = (
+            (indices[:, 0] >= 0)
+            & (indices[:, 0] < target_shape[0])
+            & (indices[:, 1] >= 0)
+            & (indices[:, 1] < target_shape[1])
+            & (indices[:, 2] >= 0)
+            & (indices[:, 2] < target_shape[2])
+        )
+        if not np.any(mask):
+            return
+        valid = indices[mask]
+        occupancy[valid[:, 0], valid[:, 1], valid[:, 2]] = True
+
+    if num_processes > 1 and total_segments > 1:
+        with ProcessPoolExecutor(max_workers=num_processes) as executor:
+            iterator = executor.map(_segment_worker, segment_args)
+            if total_segments > 1:
+                iterator = tqdm(iterator, total=total_segments, desc="Voxelizing segments")
+            for indices in iterator:
+                _accumulate(indices)
+    else:
+        iterator = segment_args
+        if total_segments > 1:
+            iterator = tqdm(iterator, total=total_segments, desc="Voxelizing segments")
+        for args in iterator:
+            indices = _segment_worker(args)
+            _accumulate(indices)
+
+    if occupancy.any():
+        # Close small cracks introduced by splitting before global fill.
+        occupancy = binary_dilation(occupancy, iterations=1)
+
+    occupancy = fill_mesh_inside_surface(occupancy)
+    return occupancy
 
 
 def voxelize_mesh(name, res=1, split=None, num_processes=1, **kwargs):
@@ -768,12 +860,22 @@ def assign_near_near_near_walls(original_mesh):
 def prepare_voxel_mesh_txt(mesh, expected_in_outs=None, num_type='int'):
     output_mesh = label_elements(mesh, expected_in_outs=expected_in_outs, num_type=num_type)
 
+    all_directions = {'N', 'E', 'S', 'W', 'B', 'F'}
     if expected_in_outs is None:
-        # Don't want to do anything
-        expected_in_outs = {'N', 'E', 'S', 'W', 'B', 'F'}
+        # Preserve existing behaviour: when no domain tags are requested,
+        # skip adding extra wall layers.
+        active_directions = set(all_directions)
+    elif isinstance(expected_in_outs, dict):
+        # Accept dict-style inputs (direction -> truthy flag) by selecting
+        # only the enabled faces.
+        active_directions = {face for face, enabled in expected_in_outs.items() if enabled}
+    elif isinstance(expected_in_outs, str):
+        active_directions = {expected_in_outs}
+    else:
+        active_directions = set(expected_in_outs)
 
-    # Calculate the difference
-    remaining_directions = {'N', 'E', 'S', 'W', 'B', 'F'} - expected_in_outs
+    # Any direction not explicitly tagged receives an added wall layer.
+    remaining_directions = all_directions - active_directions
 
     final_mesh = output_mesh.copy()
 

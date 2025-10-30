@@ -18,14 +18,15 @@ def main():
     # Small angles/flare for a quick, representative geometry
     geom = Geometry(
         name="junction_2d",
-        resolution=4,        # keep small for a fast run
+        resolution=5,        # keep small for a fast run
         split=None,          # do not split (no parallel voxelization)
         num_processes=1,     # single process
         output_dir="output", # write triplet into output/
-        lower_angle=10,      # degrees
-        upper_angle=-5,      # degrees
+        lower_angle=0,      # degrees
+        upper_angle=-10,      # degrees
         upper_flare=0.001,   # meters
         lower_flare=0.001,   # meters
+        offset=0.02,   # meters
     )
 
     # Generate voxels

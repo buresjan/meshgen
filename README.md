@@ -2,13 +2,13 @@
 
 ## Overview
 
-This toolkit generates and voxelizes 3D geometries from either parametric `.geo` templates (via Gmsh) or prebuilt STL surfaces. It targets simulation workflows (e.g., LBM), where consistent voxel grids, label semantics, and reproducible shapes are essential. Under the hood it uses `gmsh` for templated surface meshing and `trimesh` for voxelization and geometry ops, with optional parallel splitting for large models.
+This toolkit generates and voxelizes 3D geometries from either parametric `.geo` templates (via Gmsh) or prebuilt STL surfaces. It targets simulation workflows (e.g., LBM), where consistent voxel grids, label semantics, and reproducible shapes are essential. Under the hood it uses `gmsh` for templated surface meshing and `trimesh` for voxelization and geometry ops, while keeping both pipelines numerically aligned.
 
 ### Key Features
 
 - **Geometry Generation**: Generate 3D geometries based on `.geo` templates.
 - **Voxelization**: Convert complex 3D geometries into voxelized representations.
-- **Parallel Processing**: Accelerate voxelization by splitting the mesh into segments and processing them in parallel.
+- **Parallel Processing**: Split along the leading axis and voxelize segments (optionally in parallel) while stitching back to the same grid as a single-pass run.
 - **Visualization**: Visualize the voxelized mesh using Mayavi.
 - **Flexible Storage**: Save voxelized meshes as binary `.npy` files or as human-readable `.txt` files.
 
@@ -23,14 +23,15 @@ Equivalence: Both routes produce the same simulation-ready output format and lab
 
 Important details:
 - Characteristic length: If a `.geo` template contains `DEFINE_H` and you do not pass `h`, it is inferred from `resolution` using `h ≈ max(1e-4, 1e-3 / resolution)`.
-- Splitting: To guarantee exact equivalence with the no‑split result and Trimesh’s global voxelization, the current implementation performs a single‑pass voxelization and normalizes shape to the expected grid; `split`/`num_processes` are accepted for API compatibility but do not parallelize the voxelization step.
+- Splitting: The mesh is segmented along the leading axis, each segment is voxelized (optionally in parallel via `ProcessPoolExecutor`), and the stitched occupancy is re-closed with a single-voxel binary dilation before the global fill and normalization. This seals sub-voxel cracks introduced by segmentation, preserves exact equivalence with the no‑split path, and keeps workloads scalable.
 - Watertightness: The STL route expects a closed surface; a light repair is attempted (normals/winding and hole filling via trimesh) but you should supply closed inputs for reliable filling.
+- Template resolution awareness: The `.geo` route forwards `resolution` into templates as `DEFINE_RESOLUTION`. For example, the junction template applies a sub-voxel axial pad derived from `resolution` so the east outlet caps remain filled identically in both pipelines.
 
 ## Requirements
 
 The package requires the following Python libraries:
 
-- `gmsh`
+- `gmsh` (only needed for the `.geo` templated route; STL-only workflows can omit it)
 - `trimesh`
 - `numpy`
 - `scipy`
@@ -79,6 +80,8 @@ You will also need to install the runtime dependencies yourself:
 pip install numpy scipy trimesh gmsh mayavi tqdm
 ```
 
+If you only rely on the STL route you may skip installing `gmsh`.
+
 ## Usage
 
 Here is a quick example of how to use the `Geometry` class to generate, voxelize, and visualize a 3D geometry.
@@ -87,7 +90,7 @@ Here is a quick example of how to use the `Geometry` class to generate, voxelize
 from meshgen.geometry import Geometry
 
 # Initialize a Geometry instance with parameters
-geom = Geometry(name="tcpc_classic", resolution=5, split=5 * 128, num_processes=8)
+geom = Geometry(name="tcpc_classic", resolution=5)
 
 # Generate the voxel mesh based on the .geo template
 geom.generate_voxel_mesh()
@@ -130,7 +133,7 @@ geom.generate_voxel_mesh()
 geom.save_voxel_mesh_to_text("glenn_voxel_mesh.txt")  # writes geom_/dim_/val_ files
 ```
 
-This route produces the same output format as the `.geo` route and supports splitting for large models.
+This route produces the same output format as the `.geo` route and supports segment-based splitting with the same semantics.
 
 ## Geometry API (Python)
 
@@ -138,8 +141,8 @@ This route produces the same output format as the `.geo` route and supports spli
   - `.geo` route: set `name="<template>"` and pass template placeholders in `kwargs` (e.g., `lower_angle`, `upper_flare`, …). If the template expects `DEFINE_H` and you don’t pass `h`, it is inferred from `resolution`.
   - STL route: set `stl_path="path/to/closed.stl"` and leave `name=None`.
   - `resolution`: longest axis ~ 128*resolution voxels (adjusted to match Trimesh’s voxel grid behavior).
-  - `split`: optional integer to split along the leading axis and process segments in parallel.
-  - `expected_in_outs`: set of boundary tags to apply: any of `{N,E,S,W,B,F}` to label domain walls (see Labels below).
+  - `split`: optional integer to segment along the leading axis and stitch a globally filled lattice; `num_processes` controls parallel workers.
+  - `expected_in_outs`: iterable or dict of boundary tags to apply — any of `{N,E,S,W,B,F}` enables the corresponding domain wall labels (see Labels below). Dict inputs use truthy values to toggle faces.
 - Methods:
   - `generate_voxel_mesh()` → computes `voxelized_mesh` as a boolean array.
   - `get_voxel_mesh()` → returns voxel array.
@@ -171,9 +174,10 @@ When exporting text, missing domain faces are padded by a single wall layer to e
 
 ## Splitting & Parallelization
 
-- `split=<int>` and `num_processes` are accepted for API compatibility. To ensure exact equivalence of the voxel grid with Trimesh’s global voxelization, the current implementation computes a single global voxelization and normalizes shape; `split` does not change the output and does not parallelize the voxelization itself.
-- Shapes are normalized to the expected target derived from bounds and pitch so split and no‑split runs match exactly.
-- For large models, start with small `resolution` (1–2) before scaling up.
+- `split=<int>` divides the mesh along the leading axis, voxelizes each segment, and stitches the results; `num_processes` controls the number of workers used for segment voxelization.
+- Segments overlap at their boundaries to avoid gaps; after stitching we clamp indices to the global lattice, run a one-voxel binary dilation to seal seams, and then apply a single global fill so the result matches the no‑split grid exactly.
+- Shapes are normalized to the expected target derived from bounds and pitch, ensuring split and no‑split runs are identical.
+- For large models, start with small `resolution` (1–2) before scaling up; increase `split`/`num_processes` as needed to stay within memory limits.
 
 Pitch and shape: The voxel pitch is chosen so the longest axis approximates `128 * resolution` cells. Trimesh’s VoxelGrid yields `N ≈ ceil(extent / pitch) + 1` per axis; we set pitch from the longest extent to achieve the target and then normalize results to match the expected dims.
 
@@ -181,7 +185,7 @@ LBM shape normalization: For LBM grid completion, the leading dimension must be 
 
 Watertightness note: Splitting assumes robust slicing of a closed surface. For STL inputs, ensure watertightness for best results; light repairs (normals/winding, small hole filling) are attempted but not guaranteed.
 
-Performance: Avoids per-voxel Python loops; uses NumPy/Scipy vectorization and `ProcessPoolExecutor` when splitting.
+Performance: Avoids per-voxel Python loops and relies on NumPy/Scipy vectorization; segment voxelization can use a `ProcessPoolExecutor` when `num_processes > 1`.
 
 ## Troubleshooting
 

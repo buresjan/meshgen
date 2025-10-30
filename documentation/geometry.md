@@ -10,6 +10,7 @@ It orchestrates voxelization, labeling, exporting to the text triplet, and optio
 ## Key Concepts
 
 - Resolution: the voxel pitch is chosen so the longest axis has approximately `128 * resolution` cells.
+- Template alignment: templated geometries receive `DEFINE_RESOLUTION`, allowing them to add sub-voxel pads where needed (e.g., `junction_2d` extends the axial outlet slightly) so `.geo` and STL routes agree on the final filled slice.
 - Splitting: large models can be split along the leading axis and processed with multiple workers; results are stitched and filled once globally to match the no‑split behavior.
 - Labels: occupancy is converted to solver-ready labels (0 outside, 1 fluid, 2 wall, 3/4/5 near‑wall bands). Optional domain face tags `{N,E,S,W,B,F}` map to 11..16 on the fluid layer.
 
@@ -22,7 +23,7 @@ Geometry(
     split: int | None = None,
     num_processes: int = 1,
     output_dir: str = "output",
-    expected_in_outs: set[str] | None = None,
+    expected_in_outs: Collection[str] | Mapping[str, bool] | None = None,
     stl_path: str | None = None,
     **kwargs
 )
@@ -30,6 +31,7 @@ Geometry(
 
 - `.geo` route: set `name` to your template base name (e.g., `"junction_2d"`) and pass template placeholders via `kwargs` (e.g., `lower_angle=10`). If the template uses `DEFINE_H` and you don’t specify `h`, it is inferred from `resolution`.
 - STL route: set `stl_path` to an absolute or relative STL path and leave `name=None`.
+- `expected_in_outs`: supply any iterable of domain faces (e.g., `{"W","E","N"}`) or a mapping of face → truthy/falsey toggle. Enabled faces receive the 11..16 labels; others are padded with a wall layer during export.
 
 Methods:
 - `generate_voxel_mesh()` → compute voxel occupancy (dtype `bool`).
@@ -82,7 +84,7 @@ geom = Geometry(
     split=None,            # or an integer for splitting
     num_processes=1,
     output_dir="output",
-    expected_in_outs={"W", "E", "N"},  # optional domain face tags
+    expected_in_outs={"W", "E", "N"},  # iterable or dict of domain faces to label
 )
 
 geom.generate_voxel_mesh()

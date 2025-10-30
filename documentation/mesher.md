@@ -1,6 +1,6 @@
 # Module Guide: meshgen.mesher
 
-The `mesher` module handles turning `.geo` templates into STL surfaces with Gmsh, and generating a boxed STL wrapper used to robustify splitting for the STL route.
+The `mesher` module handles turning `.geo` templates into STL surfaces with Gmsh, and generating a boxed STL wrapper used to robustify splitting for the STL route. Gmsh is imported lazily—attempting to call these helpers without `gmsh` installed raises a clear `RuntimeError`, while the STL voxelization pipeline can operate without it.
 
 ## Template Editing: `modify_geo_file`
 
@@ -37,6 +37,7 @@ Loads `meshgen/geo_templates/{name_geo}_template.geo`, fills placeholders, and r
 Implementation notes:
 - Gmsh sessions are wrapped with `gmsh.initialize()`/`gmsh.finalize()` in a `try/finally` block.
 - If the template contains `DEFINE_H` and you do not pass `h`, a heuristic based on `resolution` is used: `h ≈ max(1e-4, 1e-3 / resolution)`.
+- The keyword `resolution` is forwarded unchanged, so templates can reference `DEFINE_RESOLUTION` for resolution-aware tweaks (e.g., adding a sub-voxel axial pad in `junction_2d`).
 
 Example:
 
@@ -82,5 +83,4 @@ print("Boxed STL:", boxed)
 
 - Keep templates parametric with `DEFINE_*` placeholders; avoid hardcoding values.
 - Use absolute or relative STL paths in `box_stl`; bare names resolve to `meshgen/stl_models/<name>.stl`.
-- Always ensure Gmsh is installed and accessible in the current environment.
-
+- Callers must ensure Gmsh is installed before using `gmsh_surface` or `box_stl`; otherwise a descriptive `RuntimeError` is raised.

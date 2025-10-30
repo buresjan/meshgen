@@ -5,7 +5,7 @@ The `voxels` module performs voxelization (with or without splitting), filling, 
 ## Overview
 
 - Pitch selection: pitch is chosen so the longest axis yields approximately `128 * resolution` cells, aligning with Trimesh VoxelGrid behavior (`N ≈ ceil(extent/pitch) + 1`).
-- Splitting: to guarantee exact equivalence with the no‑split result, the current implementation performs a single global voxelization and normalizes shape to expected dims. The `split` and `num_processes` parameters are accepted for API compatibility but do not parallelize the voxelization step.
+- Splitting: the mesh is partitioned along the leading axis, segments are voxelized independently (optionally in parallel), stitched into a single grid, and then sealed with a one-voxel binary dilation before the global fill. This closes seams introduced by segmentation so the final lattice is identical to the no‑split path.
 - Labeling: boolean occupancy is transformed into solver labels: 0 outside, 1 fluid, 2 wall, and near‑wall bands 3/4/5; optionally 11..16 for domain face tags.
 
 ## Key Functions
@@ -20,6 +20,7 @@ voxelize_mesh(name: str, res: int = 1,
 ```
 
 Pipeline: `.geo → STL → voxels`. Generates an STL via `mesher.gmsh_surface(name, **kwargs)` then voxelizes it. Returns a boolean occupancy array.
+Requires the Gmsh Python module; a descriptive `RuntimeError` is raised if it is unavailable.
 
 Example:
 
@@ -46,7 +47,8 @@ voxelize_stl(path: str, res: int = 1,
              num_processes: int = 1) -> np.ndarray
 ```
 
-Pipeline: `STL → voxels`. Accepts absolute or relative STL path. Ensures a closed surface if possible (light repairs on normals/winding/holes); then voxelizes. When `split` is provided, a temporary boxed STL is generated for robust slicing and stitched results are filled once globally.
+Pipeline: `STL → voxels`. Accepts absolute or relative STL path. Ensures a closed surface if possible (light repairs on normals/winding/holes); then voxelizes. When `split` is provided, faces are partitioned along the leading axis, segments are voxelized (optionally in parallel), stitched, and filled once globally.
+This route does not depend on Gmsh, so it works even in environments without the templating tool.
 
 Example:
 
@@ -58,9 +60,8 @@ occ = voxelize_stl("examples/glenn_capped.stl", res=2)
 
 ### Splitting Helpers
 
-- `split_mesh(mesh, voxel_size, n_segments)` — segments along the leading axis.
-- `process_submesh(submsh, margin, voxel_size, leading_direction)` — voxelizes one segment and pads margins.
-- `voxelize_with_splitting(mesh, voxel_size, split, num_processes, target_bounds)` — parallel voxelization, stitching, final fill, and shape normalization.
+- `split_mesh(mesh, voxel_size, n_segments)` — partitions faces along the leading axis with overlap.
+- `voxelize_with_splitting(mesh, voxel_size, split, num_processes, target_bounds)` — segment, voxelize (in parallel if desired), clamp indices to the global lattice, dilate once to seal seams, fill, and normalize shape.
 
 ### Filling and Completion
 
@@ -72,7 +73,7 @@ occ = voxelize_stl("examples/glenn_capped.stl", res=2)
 - `label_elements(mesh, expected_in_outs=None, num_type='bool')` — convert occupancy to labels:
   - 0 empty/outside; 1 fluid; 2 wall; optionally 11..16 for `{N,E,S,W,B,F}` on the fluid layer.
 - `assign_near_walls`, `assign_near_near_walls`, `assign_near_near_near_walls` — set labels 3, 4, and 5 on fluid voxels adjacent to 2, 3, and 4, respectively.
-- `prepare_voxel_mesh_txt(mesh, expected_in_outs=None, num_type='int')` — produce the labeled volume for export; pads missing domain faces with a one-voxel wall layer; adds near-wall bands.
+- `prepare_voxel_mesh_txt(mesh, expected_in_outs=None, num_type='int')` — produce the labeled volume for export; pads missing domain faces with a one-voxel wall layer; adds near-wall bands. Accepts any iterable of faces or a mapping of `face -> enabled` flags.
 
 ## End-to-End Examples
 

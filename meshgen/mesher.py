@@ -1,7 +1,21 @@
 import os
 import tempfile
 import shutil
-import gmsh
+
+try:
+    import gmsh  # type: ignore
+except ImportError as exc:  # pragma: no cover - import guard
+    gmsh = None  # type: ignore
+    _GM_IMPORT_ERROR = exc  # type: ignore
+
+
+def _require_gmsh():
+    """Ensure the gmsh Python module is available before proceeding."""
+    if gmsh is None:  # pragma: no cover - simple guard
+        raise RuntimeError(
+            "Gmsh is required for .geo templated meshing. Install `gmsh` or "
+            "use the STL pipeline instead."
+        ) from _GM_IMPORT_ERROR
 
 
 def modify_geo_file(input_file_path, output_file_path, **kwargs):
@@ -57,6 +71,8 @@ def box_stl(stl_file, x, y, z, dx, dy, dz, voxel_size):
     Returns:
     str: The path to the generated boxed STL file.
     """
+    _require_gmsh()
+
     # Resolve template/geometries relative to this package directory
     base_dir = os.path.dirname(__file__)
     template_path = os.path.join(base_dir, "geo_templates", "boxed_stl_template.geo")
@@ -126,6 +142,8 @@ def gmsh_surface(name_geo, dependent=False, **kwargs):
     Returns:
     str: The path to the generated STL file.
     """
+    _require_gmsh()
+
     # Resolve template path relative to this package directory
     base_dir = os.path.dirname(__file__)
     template_path = os.path.join(base_dir, "geo_templates", f"{name_geo}_template.geo")

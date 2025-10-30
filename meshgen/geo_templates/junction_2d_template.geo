@@ -10,8 +10,8 @@ Mesh.CharacteristicLengthMin = h;
 Mesh.CharacteristicLengthMax = h;
 
 // Offset for positioning along the X-axis - bounds -0.02 to +0.02
-OFFSET = 0.00;  // Adjust if needed for positioning; set to 0 for centered positioning
-// OFFSET = DEFINE_OFFSET
+// OFFSET = 0.00;  // Adjust if needed for positioning; set to 0 for centered positioning
+OFFSET = DEFINE_OFFSET;
 
 // Rotation of the conduit - bounds -0.5 to +0.5
 LOWER_ANGLE = DEFINE_LOWER_ANGLE;
@@ -36,6 +36,12 @@ UPPER_LENGTH = 0.06;  // Length of the upper (top) cylinder in meters
 UPPER_RADIUS = 0.007; // Radius of the upper cylinder in meters
 MIDDLE_LENGTH = 0.17; // Length of the middle (horizontal) cylinder in meters
 MIDDLE_RADIUS = 0.011;  // Radius of the middle cylinder in meters
+
+RESOLUTION = DEFINE_RESOLUTION;
+If (RESOLUTION <= 0)
+  RESOLUTION = 1;
+EndIf
+PAD = MIDDLE_LENGTH / (128 * RESOLUTION * 8.0);
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////// First Cylinder - Lower /////////////////////////////////////////////
@@ -147,7 +153,7 @@ Rotate { {0, 1, 0}, {0.0, 0.0, LOWER_LENGTH}, UPPER_ANGLE} {
 
 // Define points along the axis of the middle cylinder
 Point(10001) = {-MIDDLE_LENGTH / 2.0, 0.0, LOWER_LENGTH, h};
-Point(10002) = {MIDDLE_LENGTH / 2.0, 0.0, LOWER_LENGTH, h};
+Point(10002) = {MIDDLE_LENGTH / 2.0 + PAD, 0.0, LOWER_LENGTH, h};
 
 // Create line and wire for middle cylinder extrusion
 Line(10001) = {10002, 10001};
@@ -185,7 +191,7 @@ Recursive Delete {
 
 // Create a box domain that is used to slice potential "tilted" bottom part of the rotated conduit - we want it to be
 //  parallel with the ZY plane
-Box(5) = {-MIDDLE_LENGTH / 2.0, -MIDDLE_RADIUS, 0.015, MIDDLE_LENGTH, 2*MIDDLE_RADIUS, LOWER_LENGTH + UPPER_LENGTH - 0.03};
+Box(5) = {-MIDDLE_LENGTH / 2.0, -MIDDLE_RADIUS, 0.015, MIDDLE_LENGTH + PAD, 2*MIDDLE_RADIUS, LOWER_LENGTH + UPPER_LENGTH - 0.03};
 
 // Intersect the box with the Volume {4}
 BooleanIntersection{ Volume{5}; Delete;}{ Volume{4}; Delete;}
