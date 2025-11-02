@@ -696,7 +696,7 @@ def voxelize_mesh(name, res=1, split=None, num_processes=1, **kwargs):
         output = voxelize_elementary(mesh, voxel_size)
         output = fill_mesh_inside_surface(output)
         ext = (mesh.bounds[1] - mesh.bounds[0])
-        exp = (np.floor(ext / voxel_size).astype(int) + 1).tolist()
+        exp = (np.ceil(ext / voxel_size).astype(int) + 1).tolist()
         sx, sy, sz = output.shape
         tx, ty, tz = exp
         if sx >= tx and sy >= ty and sz >= tz:
@@ -752,7 +752,7 @@ def voxelize_stl(path, res=1, split=None, num_processes=1):
         occ = fill_mesh_inside_surface(occ)
         # Normalize to expected dims derived from original bounds
         ext = (mesh.bounds[1] - mesh.bounds[0])
-        exp = (np.floor(ext / voxel_size).astype(int) + 1).tolist()
+        exp = (np.ceil(ext / voxel_size).astype(int) + 1).tolist()
         sx, sy, sz = occ.shape
         tx, ty, tz = exp
         if sx >= tx and sy >= ty and sz >= tz:
