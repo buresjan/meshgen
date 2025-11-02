@@ -50,6 +50,7 @@ def compute_labels(resolution: int = 6, expected_faces=None):
         upper_angle=15,
         upper_flare=0.001,
         lower_flare=0.001,
+        offset=0,
     )
     geom.generate_voxel_mesh()
     occ = geom.get_voxel_mesh()
