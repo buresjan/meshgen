@@ -85,67 +85,70 @@ def get_leading_direction(shape):
 
 def fill_extended_mesh(original_mesh, new_mesh, num_type='bool', expected_in_outs=None):
     """
-    Embed an original mesh into a new, larger mesh.
+    Embed the voxelized occupancy into a larger cuboidal domain, then label.
 
-    This function takes an original mesh and a new mesh (which is larger in size).
-    It calculates the leading direction (dimension) of the original mesh and embeds it
-    into the center of the new mesh along the remaining dimensions. The function assumes
-    that the meshes are 3D and represented in a NumPy array-like format.
+    Pipeline per spec:
+    - Start with boolean occupancy from voxelization (fluid=True).
+    - Embed this occupancy into a cuboidal domain (LBM-friendly shape).
+    - If `num_type == 'bool'`, return the embedded occupancy.
+    - If `num_type == 'int'`, convert the embedded occupancy to labels via `label_elements`
+      so face tags and wall shells are computed on the final domain shape.
 
     Parameters:
-    original_mesh (numpy.ndarray): The original mesh to be embedded.
-    new_mesh (numpy.ndarray): The new, larger mesh where the original mesh will be embedded.
+    - original_mesh: numpy.ndarray (3D), boolean-like occupancy from voxelization.
+    - new_mesh: numpy.ndarray (3D), only its shape is used for embedding placement.
+    - num_type: 'bool' or 'int' to control output type.
+    - expected_in_outs: optional set of {N,E,S,W,B,F} for face tagging (when num_type='int').
 
     Returns:
-    numpy.ndarray: The new mesh with the original mesh embedded in it.
+    - numpy.ndarray: embedded occupancy (bool) or labeled volume (int) with the same shape as `new_mesh`.
     """
-    # Determine the shapes of the original and new meshes
+    # Shapes
     original_shape = original_mesh.shape
     new_shape = new_mesh.shape
 
-    # Identify the leading direction (dimension) of the original mesh
-    direction_idx = get_leading_direction(original_mesh.shape)
+    # Determine leading direction and the remaining two axes
+    direction_idx = get_leading_direction(original_shape)
     remaining_indices = [i for i in range(3) if i != direction_idx]
 
-    # Fill the original mesh inside its surface
-    original_mesh = fill_mesh_inside_surface(original_mesh)
+    # Ensure interior is filled on the original occupancy
+    occ = fill_mesh_inside_surface(original_mesh.astype(bool))
 
-    labeled_mesh = label_elements(original_mesh, expected_in_outs=expected_in_outs, num_type=num_type)
+    # Prepare an empty occupancy of target size for embedding
+    embedded_occ = np.zeros(new_shape, dtype=bool)
 
-    # Embed the original mesh into the new mesh based on the leading direction
+    # Embed occupancy into the center along the two non-leading axes
     if remaining_indices == [0, 1]:
-        # Calculate starting points for embedding
         start_0 = (new_shape[0] - original_shape[0]) // 2
         start_1 = (new_shape[1] - original_shape[1]) // 2
-
-        # Embed the original mesh into the new mesh
-        new_mesh[
+        embedded_occ[
             start_0 : start_0 + original_shape[0],
             start_1 : start_1 + original_shape[1],
             :,
-        ] = labeled_mesh
-
+        ] = occ
     elif remaining_indices == [0, 2]:
         start_0 = (new_shape[0] - original_shape[0]) // 2
         start_1 = (new_shape[2] - original_shape[2]) // 2
-
-        new_mesh[
+        embedded_occ[
             start_0 : start_0 + original_shape[0],
             :,
             start_1 : start_1 + original_shape[2],
-        ] = labeled_mesh
-
+        ] = occ
     else:
         start_0 = (new_shape[1] - original_shape[1]) // 2
         start_1 = (new_shape[2] - original_shape[2]) // 2
-
-        new_mesh[
+        embedded_occ[
             :,
             start_0 : start_0 + original_shape[1],
             start_1 : start_1 + original_shape[2],
-        ] = labeled_mesh
+        ] = occ
 
-    return new_mesh
+    # Return either the embedded occupancy or labeled integers computed on the final domain
+    if num_type == 'bool':
+        return embedded_occ
+
+    labeled = label_elements(embedded_occ, expected_in_outs=expected_in_outs, num_type='int')
+    return labeled
 
 
 def get_lbm_shape(original_shape):
@@ -586,6 +589,7 @@ def voxelize_with_splitting(mesh, voxel_size, split, num_processes=1, target_bou
     if target_bounds is None:
         target_bounds = mesh.bounds
 
+    # No-split path: voxelize once and normalize to expected dims derived from bounds and pitch
     if split is None or split <= 1:
         ary = voxelize_elementary(mesh, voxel_size)
         ary = fill_mesh_inside_surface(ary)
@@ -595,6 +599,7 @@ def voxelize_with_splitting(mesh, voxel_size, split, num_processes=1, target_bou
         tx, ty, tz = exp
         if sx >= tx and sy >= ty and sz >= tz:
             return ary[:tx, :ty, :tz]
+        # pad if needed to match expected dims
         nx, ny, nz = max(sx, tx), max(sy, ty), max(sz, tz)
         tmp = np.zeros((nx, ny, nz), dtype=ary.dtype)
         tmp[:sx, :sy, :sz] = ary
@@ -691,7 +696,7 @@ def voxelize_mesh(name, res=1, split=None, num_processes=1, **kwargs):
         output = voxelize_elementary(mesh, voxel_size)
         output = fill_mesh_inside_surface(output)
         ext = (mesh.bounds[1] - mesh.bounds[0])
-        exp = (np.ceil(ext / voxel_size).astype(int) + 1).tolist()
+        exp = (np.floor(ext / voxel_size).astype(int) + 1).tolist()
         sx, sy, sz = output.shape
         tx, ty, tz = exp
         if sx >= tx and sy >= ty and sz >= tz:
@@ -747,7 +752,7 @@ def voxelize_stl(path, res=1, split=None, num_processes=1):
         occ = fill_mesh_inside_surface(occ)
         # Normalize to expected dims derived from original bounds
         ext = (mesh.bounds[1] - mesh.bounds[0])
-        exp = (np.ceil(ext / voxel_size).astype(int) + 1).tolist()
+        exp = (np.floor(ext / voxel_size).astype(int) + 1).tolist()
         sx, sy, sz = occ.shape
         tx, ty, tz = exp
         if sx >= tx and sy >= ty and sz >= tz:
@@ -799,22 +804,66 @@ def label_elements(original_mesh, expected_in_outs=None, num_type='bool'):
     solid_shell = (~occ) & (fluid_nbrs > 0)
     labeled[solid_shell] = 2
 
-    # Optional domain wall tags: apply to the fluid layer on specific domain faces
+    # Optional domain wall tags: apply to the last fluid layer on requested faces
     if expected_in_outs is None:
         expected_in_outs = {}
 
-    if 'N' in expected_in_outs:
-        labeled[:, :, -1][labeled[:, :, -1] == 1] = 11
-    if 'E' in expected_in_outs:
-        labeled[-1, :, :][labeled[-1, :, :] == 1] = 12
-    if 'S' in expected_in_outs:
-        labeled[:, :, 0][labeled[:, :, 0] == 1] = 13
-    if 'W' in expected_in_outs:
-        labeled[0, :, :][labeled[0, :, :] == 1] = 14
-    if 'B' in expected_in_outs:
-        labeled[:, -1, :][labeled[:, -1, :] == 1] = 15
-    if 'F' in expected_in_outs:
-        labeled[:, 0, :][labeled[:, 0, :] == 1] = 16
+    # Determine fluid extents along each axis and tag by fluid boundary planes
+    sx, sy, sz = occ.shape
+    x_any = np.any(occ, axis=(1, 2))
+    y_any = np.any(occ, axis=(0, 2))
+    z_any = np.any(occ, axis=(0, 1))
+    x_ids = np.flatnonzero(x_any)
+    y_ids = np.flatnonzero(y_any)
+    z_ids = np.flatnonzero(z_any)
+
+    # Z faces per updated convention: N=max index, S=min index among fluid
+    if 'N' in expected_in_outs and z_ids.size:
+        zn = int(z_ids[-1])
+        plane = labeled[:, :, zn]
+        mask = (plane == 1)
+        if np.any(mask):
+            plane[mask] = 11
+            labeled[:, :, zn] = plane
+    if 'S' in expected_in_outs and z_ids.size:
+        zs = int(z_ids[0])
+        plane = labeled[:, :, zs]
+        mask = (plane == 1)
+        if np.any(mask):
+            plane[mask] = 13
+            labeled[:, :, zs] = plane
+
+    # X faces: W=min index, E=max index among fluid
+    if 'E' in expected_in_outs and x_ids.size:
+        xe = int(x_ids[-1])
+        plane = labeled[xe, :, :]
+        mask = (plane == 1)
+        if np.any(mask):
+            plane[mask] = 12
+            labeled[xe, :, :] = plane
+    if 'W' in expected_in_outs and x_ids.size:
+        xw = int(x_ids[0])
+        plane = labeled[xw, :, :]
+        mask = (plane == 1)
+        if np.any(mask):
+            plane[mask] = 14
+            labeled[xw, :, :] = plane
+
+    # Y faces: F=min index, B=max index among fluid
+    if 'B' in expected_in_outs and y_ids.size:
+        yb = int(y_ids[-1])
+        plane = labeled[:, yb, :]
+        mask = (plane == 1)
+        if np.any(mask):
+            plane[mask] = 15
+            labeled[:, yb, :] = plane
+    if 'F' in expected_in_outs and y_ids.size:
+        yf = int(y_ids[0])
+        plane = labeled[:, yf, :]
+        mask = (plane == 1)
+        if np.any(mask):
+            plane[mask] = 16
+            labeled[:, yf, :] = plane
 
     # If integer labels explicitly requested, ensure dtype matches
     if num_type == 'int' and labeled.dtype != int:
@@ -857,8 +906,9 @@ def assign_near_near_near_walls(original_mesh):
     return updated_mesh
 
 
-def prepare_voxel_mesh_txt(mesh, expected_in_outs=None, num_type='int'):
-    output_mesh = label_elements(mesh, expected_in_outs=expected_in_outs, num_type=num_type)
+def prepare_voxel_mesh_txt(mesh, expected_in_outs=None, num_type='int', label_faces: bool = True):
+    # Start from occupancy → base labels (0/1/2) only. Do NOT set face tags here.
+    output_mesh = label_elements(mesh, expected_in_outs=None, num_type=num_type)
 
     all_directions = {'N', 'E', 'S', 'W', 'B', 'F'}
     if expected_in_outs is None:
@@ -876,18 +926,97 @@ def prepare_voxel_mesh_txt(mesh, expected_in_outs=None, num_type='int'):
 
     # Any direction not explicitly tagged receives an added wall layer.
     remaining_directions = all_directions - active_directions
-
     final_mesh = output_mesh.copy()
-
     for direction in remaining_directions:
         final_mesh = add_additional_wall_layer(final_mesh, direction, 2)
 
+    # Ensure no wall layer (2) sits on requested inlet/outlet planes prior to face-tagging.
+    # This avoids spurious near-wall bands under I/O planes and prevents the appearance
+    # of a "wall sheet" on boundary faces before tags are applied.
+    if expected_in_outs:
+        sx, sy, sz = final_mesh.shape
+        # Z planes: N = z max, S = z min
+        if 'N' in expected_in_outs and sz > 0:
+            plane = final_mesh[:, :, -1]
+            plane[plane == 2] = 0
+            final_mesh[:, :, -1] = plane
+        if 'S' in expected_in_outs and sz > 0:
+            plane = final_mesh[:, :, 0]
+            plane[plane == 2] = 0
+            final_mesh[:, :, 0] = plane
+        # X planes: W = x min, E = x max
+        if 'W' in expected_in_outs and sx > 0:
+            plane = final_mesh[0, :, :]
+            plane[plane == 2] = 0
+            final_mesh[0, :, :] = plane
+        if 'E' in expected_in_outs and sx > 0:
+            plane = final_mesh[-1, :, :]
+            plane[plane == 2] = 0
+            final_mesh[-1, :, :] = plane
+        # Y planes: F = y min, B = y max
+        if 'F' in expected_in_outs and sy > 0:
+            plane = final_mesh[:, 0, :]
+            plane[plane == 2] = 0
+            final_mesh[:, 0, :] = plane
+        if 'B' in expected_in_outs and sy > 0:
+            plane = final_mesh[:, -1, :]
+            plane[plane == 2] = 0
+            final_mesh[:, -1, :] = plane
+
+    # Near‑wall bands: promote fluid labels 1→3→4→5, walls (2) stay
     export_mesh = final_mesh.copy()
     export_mesh = assign_near_walls(export_mesh)
     export_mesh = assign_near_near_walls(export_mesh)
     export_mesh = assign_near_near_near_walls(export_mesh)
 
-    # return final_mesh
+    # Final overlay: tag requested domain boundary planes intersected with fluid-like voxels
+    if label_faces and expected_in_outs:
+        sx, sy, sz = export_mesh.shape
+        fluid_like = (export_mesh == 1) | (export_mesh == 3) | (export_mesh == 4) | (export_mesh == 5)
+
+        # Z planes (updated convention: N=z max plane, S=z min plane)
+        if 'N' in expected_in_outs and sz > 0:
+            plane = export_mesh[:, :, -1]
+            # Tag if boundary cell is fluid-like OR if the immediate interior neighbor is fluid-like
+            neighbor = fluid_like[:, :, -2] if sz > 1 else np.zeros((sx, sy), dtype=bool)
+            mask = fluid_like[:, :, -1] | neighbor
+            plane[mask] = 11
+            export_mesh[:, :, -1] = plane
+        if 'S' in expected_in_outs and sz > 0:
+            plane = export_mesh[:, :, 0]
+            neighbor = fluid_like[:, :, 1] if sz > 1 else np.zeros((sx, sy), dtype=bool)
+            mask = fluid_like[:, :, 0] | neighbor
+            plane[mask] = 13
+            export_mesh[:, :, 0] = plane
+
+        # X planes (W=x min plane, E=x max plane)
+        if 'W' in expected_in_outs and sx > 0:
+            plane = export_mesh[0, :, :]
+            neighbor = fluid_like[1, :, :] if sx > 1 else np.zeros((sy, sz), dtype=bool)
+            mask = fluid_like[0, :, :] | neighbor
+            plane[mask] = 14
+            export_mesh[0, :, :] = plane
+        if 'E' in expected_in_outs and sx > 0:
+            plane = export_mesh[-1, :, :]
+            neighbor = fluid_like[-2, :, :] if sx > 1 else np.zeros((sy, sz), dtype=bool)
+            mask = fluid_like[-1, :, :] | neighbor
+            plane[mask] = 12
+            export_mesh[-1, :, :] = plane
+
+        # Y planes (F=y min plane, B=y max plane)
+        if 'F' in expected_in_outs and sy > 0:
+            plane = export_mesh[:, 0, :]
+            neighbor = fluid_like[:, 1, :] if sy > 1 else np.zeros((sx, sz), dtype=bool)
+            mask = fluid_like[:, 0, :] | neighbor
+            plane[mask] = 16
+            export_mesh[:, 0, :] = plane
+        if 'B' in expected_in_outs and sy > 0:
+            plane = export_mesh[:, -1, :]
+            neighbor = fluid_like[:, -2, :] if sy > 1 else np.zeros((sx, sz), dtype=bool)
+            mask = fluid_like[:, -1, :] | neighbor
+            plane[mask] = 15
+            export_mesh[:, -1, :] = plane
+
     return export_mesh
 
 

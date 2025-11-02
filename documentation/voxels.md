@@ -73,7 +73,7 @@ occ = voxelize_stl("examples/glenn_capped.stl", res=2)
 - `label_elements(mesh, expected_in_outs=None, num_type='bool')` — convert occupancy to labels:
   - 0 empty/outside; 1 fluid; 2 wall; optionally 11..16 for `{N,E,S,W,B,F}` on the fluid layer.
 - `assign_near_walls`, `assign_near_near_walls`, `assign_near_near_near_walls` — set labels 3, 4, and 5 on fluid voxels adjacent to 2, 3, and 4, respectively.
-- `prepare_voxel_mesh_txt(mesh, expected_in_outs=None, num_type='int')` — produce the labeled volume for export; pads missing domain faces with a one-voxel wall layer; adds near-wall bands. Accepts any iterable of faces or a mapping of `face -> enabled` flags.
+- `prepare_voxel_mesh_txt(mesh, expected_in_outs=None, num_type='int')` — produce the labeled volume for export; pads missing domain faces with a one‑voxel wall layer; adds near‑wall bands; reapplies face tags on fluid boundary planes last so they override near‑wall. Accepts any iterable of faces or a mapping of `face -> enabled` flags.
 
 ## End-to-End Examples
 
@@ -116,3 +116,9 @@ print(np.unique(labels))  # expect 0,1,2,3,4,5 and optionally 11..16
 - All heavy operations are vectorized; avoid writing per-voxel Python loops around these APIs.
 - Ensure inputs are closed surfaces for reliable filling; light repairs are attempted but not guaranteed.
 - Install the package via the `pyproject.toml` metadata (`pip install -e .` with pip ≥ 21 for editable worktrees).
+
+### Face Tagging Semantics
+
+- Face tags are applied after embedding and near‑wall labeling on the fluid boundary planes: for each axis, the first and last indices where fluid exists define the min/max face.
+- Mapping: `W=x_min`, `E=x_max`, `F=y_min`, `B=y_max`, `N=z_max`, `S=z_min`.
+- Tags (11..16) are applied only to fluid voxels on those planes and override near‑wall bands (3/4/5) there.

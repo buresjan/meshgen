@@ -125,6 +125,8 @@ Notes:
 - The junction template exposes these controls via placeholders: `LOWER_ANGLE`, `UPPER_ANGLE`, `UPPER_FLARE`, `LOWER_FLARE`.
 - `OFFSET` is fixed to 0.0 in the template as provided; you can edit the template if you want to parameterize it.
 
+ 
+
 ### STL route: voxelize a closed STL directly
 
 You can now bypass `.geo` templates and voxelize a closed STL directly via the `Geometry` class by providing `stl_path`:
@@ -171,8 +173,12 @@ Default labeled volume semantics used by downstream solvers:
 - 2 — wall/solid (one-voxel shell immediately outside the fluid region)
 - 3/4/5 — near-wall bands: first, second, and third bands into the fluid for optional modeling
 
-Optional domain wall tags can be applied on the fluid layer if you pass `expected_in_outs` containing any of `{N, E, S, W, B, F}`. The mapping is applied on the corresponding domain faces:
-- N (z max) → 11, E (x max) → 12, S (z min) → 13, W (x min) → 14, B (y max) → 15, F (y min) → 16
+Optional domain wall tags can be applied on the fluid layer if you pass `expected_in_outs` containing any of `{N, E, S, W, B, F}`. The mapping is applied on the fluid boundary planes (first/last indices where fluid exists):
+- N (z max among fluid) → 11, E (x max among fluid) → 12, S (z min among fluid) → 13, W (x min among fluid) → 14, B (y max among fluid) → 15, F (y min among fluid) → 16
+
+Face-tagging details:
+- Tags use the first/last indices along each axis where fluid exists; this aligns with inlets/outlets of the fluid domain.
+- In the export pipeline, near-wall bands (3/4/5) are assigned first, then face tags (11..16) are reapplied so they override near-wall labels on the tagged planes.
 
 When exporting text, missing domain faces are padded by a single wall layer to ensure presence and consistency for downstream codes.
 
@@ -183,7 +189,7 @@ When exporting text, missing domain faces are padded by a single wall layer to e
 - Shapes are normalized to the expected target derived from bounds and pitch, ensuring split and no‑split runs are identical.
 - For large models, start with small `resolution` (1–2) before scaling up; increase `split`/`num_processes` as needed to stay within memory limits.
 
-Pitch and shape: The voxel pitch is chosen so the longest axis approximates `128 * resolution` cells. Trimesh’s VoxelGrid yields `N ≈ ceil(extent / pitch) + 1` per axis; we set pitch from the longest extent to achieve the target and then normalize results to match the expected dims.
+Pitch and shape: The voxel pitch is chosen so the longest axis approximates `128 * resolution` cells. Trimesh’s VoxelGrid yields `N ≈ floor(extent / pitch) + 1` per axis; we set pitch from the longest extent to achieve the target and then normalize results to match the expected dims without trailing empty planes.
 
 LBM shape normalization: For LBM grid completion, the leading dimension must be a multiple of 128; the remaining dimensions are rounded up to the nearest multiple of 32.
 
