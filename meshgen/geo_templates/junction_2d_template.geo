@@ -196,4 +196,4 @@ Recursive Delete {
 Box(5) = {-MIDDLE_LENGTH / 2.0, -MIDDLE_RADIUS, 0.015, MIDDLE_LENGTH + PAD, 2*MIDDLE_RADIUS, LOWER_LENGTH + UPPER_LENGTH - 0.03};
 
 // Intersect the box with the Volume {4}
-BooleanIntersection{ Volume{5}; Delete;}{ Volume{4}; Delete;}
+BooleanIntersection(7) = { Volume{5}; Delete;}{ Volume{4}; Delete;};
