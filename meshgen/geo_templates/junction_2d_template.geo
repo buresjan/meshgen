@@ -43,6 +43,8 @@ If (RESOLUTION <= 0)
 EndIf
 PAD = MIDDLE_LENGTH / (128 * RESOLUTION * 8.0);
 
+CYLINDER_SHIFT = 0.002;
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////// First Cylinder - Lower /////////////////////////////////////////////
 ////////////////////////////////////////////// ID - 00001 ////////////////////////////////////////////////////////
@@ -65,7 +67,7 @@ Extrude { Surface{1}; } Using Wire {2}
 
 // Points that determine the central axis of the conduit - used for forming a closed loop
 Point(1) = {OFFSET, 0.0, 0.0, h};
-Point(11) = {OFFSET, 0.0, LOWER_LENGTH, h};
+Point(11) = {OFFSET, 0.0, LOWER_LENGTH + CYLINDER_SHIFT, h};
 
 // Main points forming the spline to be rotated and revolved
 Point(2) = {OFFSET + LOWER_RADIUS, 0.0, 0.0, h};
@@ -76,7 +78,7 @@ Point(6) = {OFFSET + LOWER_RADIUS, 0.0, LOWER_LENGTH / 2.0, h};
 Point(7) = {OFFSET + LOWER_RADIUS + LOWER_FLARE / 4.0, 0.0, 5.0 * LOWER_LENGTH / 8.0, h};
 Point(8) = {OFFSET + LOWER_RADIUS + 2.5 * LOWER_FLARE / 4.0, 0.0, 6.0 * LOWER_LENGTH / 8.0, h};
 Point(9) = {OFFSET + LOWER_RADIUS + 3.0 * LOWER_FLARE / 4.0, 0.0, 7.0 * LOWER_LENGTH / 8.0, h};
-Point(10) = {OFFSET + LOWER_RADIUS + LOWER_FLARE, 0.0, LOWER_LENGTH, h};
+Point(10) = {OFFSET + LOWER_RADIUS + LOWER_FLARE, 0.0, LOWER_LENGTH + CYLINDER_SHIFT, h};
 
 // Lines that form a close loop
 Line(1) = {1, 2};
@@ -99,7 +101,7 @@ Extrude { {0, 0, 1}, {OFFSET, 0.0, 0.00} , 2*Pi } {
 }
 
 // Rotate the created volume by specified angle around the axis Z that is translated to the central point of the conduit
-Rotate { {0, 1, 0}, {OFFSET, 0.0, LOWER_LENGTH}, LOWER_ANGLE} {
+Rotate { {0, 1, 0}, {OFFSET, 0.0, LOWER_LENGTH + CYLINDER_SHIFT}, LOWER_ANGLE} {
   Volume{1};
 }
 
@@ -108,19 +110,19 @@ Rotate { {0, 1, 0}, {OFFSET, 0.0, LOWER_LENGTH}, LOWER_ANGLE} {
 ////////////////////////////////////////////// ID - 00101 ////////////////////////////////////////////////////////
 
 // Define points along the axis of the upper cylinder
-Point(111) = {0.0, 0.0, LOWER_LENGTH, h};
-Point(101) = {0.0, 0.0, LOWER_LENGTH + UPPER_LENGTH, h};
+Point(111) = {0.0, 0.0, LOWER_LENGTH - CYLINDER_SHIFT, h};
+Point(101) = {0.0, 0.0, LOWER_LENGTH - CYLINDER_SHIFT + UPPER_LENGTH, h};
 
 // Main points forming the spline to be rotated and revolved
-Point(102) = {UPPER_RADIUS, 0.0, LOWER_LENGTH + UPPER_LENGTH, h};
-Point(103) = {UPPER_RADIUS, 0.0, LOWER_LENGTH + UPPER_LENGTH - 1.0 * UPPER_LENGTH / 8.0, h};
-Point(104) = {UPPER_RADIUS, 0.0, LOWER_LENGTH + UPPER_LENGTH - 2.0 * UPPER_LENGTH / 8.0, h};
-Point(105) = {UPPER_RADIUS, 0.0, LOWER_LENGTH + UPPER_LENGTH - 3.0 * UPPER_LENGTH / 8.0, h};
-Point(106) = {UPPER_RADIUS, 0.0, LOWER_LENGTH + UPPER_LENGTH - UPPER_LENGTH / 2.0, h};
-Point(107) = {UPPER_RADIUS + UPPER_FLARE / 4.0, 0.0, LOWER_LENGTH + UPPER_LENGTH - 5.0 * UPPER_LENGTH / 8.0, h};
-Point(108) = {UPPER_RADIUS + 2.5 * UPPER_FLARE / 4.0, 0.0, LOWER_LENGTH + UPPER_LENGTH - 6.0 * UPPER_LENGTH / 8.0, h};
-Point(109) = {UPPER_RADIUS + 3.0 * UPPER_FLARE / 4.0, 0.0, LOWER_LENGTH + UPPER_LENGTH - 7.0 * UPPER_LENGTH / 8.0, h};
-Point(110) = {UPPER_RADIUS + UPPER_FLARE, 0.0, UPPER_LENGTH, h};
+Point(102) = {UPPER_RADIUS, 0.0, LOWER_LENGTH - CYLINDER_SHIFT + UPPER_LENGTH, h};
+Point(103) = {UPPER_RADIUS, 0.0, LOWER_LENGTH - CYLINDER_SHIFT + UPPER_LENGTH - 1.0 * UPPER_LENGTH / 8.0, h};
+Point(104) = {UPPER_RADIUS, 0.0, LOWER_LENGTH - CYLINDER_SHIFT + UPPER_LENGTH - 2.0 * UPPER_LENGTH / 8.0, h};
+Point(105) = {UPPER_RADIUS, 0.0, LOWER_LENGTH - CYLINDER_SHIFT + UPPER_LENGTH - 3.0 * UPPER_LENGTH / 8.0, h};
+Point(106) = {UPPER_RADIUS, 0.0, LOWER_LENGTH - CYLINDER_SHIFT + UPPER_LENGTH - UPPER_LENGTH / 2.0, h};
+Point(107) = {UPPER_RADIUS + UPPER_FLARE / 4.0, 0.0, LOWER_LENGTH - CYLINDER_SHIFT + UPPER_LENGTH - 5.0 * UPPER_LENGTH / 8.0, h};
+Point(108) = {UPPER_RADIUS + 2.5 * UPPER_FLARE / 4.0, 0.0, LOWER_LENGTH - CYLINDER_SHIFT + UPPER_LENGTH - 6.0 * UPPER_LENGTH / 8.0, h};
+Point(109) = {UPPER_RADIUS + 3.0 * UPPER_FLARE / 4.0, 0.0, LOWER_LENGTH - CYLINDER_SHIFT + UPPER_LENGTH - 7.0 * UPPER_LENGTH / 8.0, h};
+Point(110) = {UPPER_RADIUS + UPPER_FLARE, 0.0, UPPER_LENGTH - CYLINDER_SHIFT, h};
 
 // Lines that form a close loop
 Line(101) = {101, 102};
@@ -138,12 +140,12 @@ Curve Loop(101) = {101, 102, 103, 104, 105};
 Plane Surface(101) = {101};
 
 // Revolve the surface around the axis X that is translated to the central point of the conduit creating Volume{1}
-Extrude { {0, 0, 1}, {0.0, 0.0, LOWER_LENGTH + UPPER_LENGTH} , 2*Pi } {
+Extrude { {0, 0, 1}, {0.0, 0.0, LOWER_LENGTH - CYLINDER_SHIFT + UPPER_LENGTH} , 2*Pi } {
   Surface{101}; Recombine;
 }
 
 // Rotate the created volume by specified angle around the axis Z that is translated to the central point of the conduit
-Rotate { {0, 1, 0}, {0.0, 0.0, LOWER_LENGTH}, UPPER_ANGLE} {
+Rotate { {0, 1, 0}, {0.0, 0.0, LOWER_LENGTH - CYLINDER_SHIFT}, UPPER_ANGLE} {
   Volume{2};
 }
 
