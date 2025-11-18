@@ -143,11 +143,12 @@ This route produces the same output format as the `.geo` route and supports segm
 
 ## Geometry API (Python)
 
-- `Geometry(name=None, resolution=1, split=None, num_processes=1, output_dir="output", expected_in_outs=None, stl_path=None, **kwargs)`
+- `Geometry(name=None, resolution=1, split=None, num_processes=1, output_dir="output", expected_in_outs=None, stl_path=None, leading_multiple=128, **kwargs)`
   - `.geo` route: set `name="<template>"` and pass template placeholders in `kwargs` (e.g., `lower_angle`, `upper_flare`, …). If the template expects `DEFINE_H` and you don’t pass `h`, it is inferred from `resolution`.
   - STL route: set `stl_path="path/to/closed.stl"` and leave `name=None`.
-  - `resolution`: longest axis ~ 128*resolution voxels (adjusted to match Trimesh’s voxel grid behavior).
+  - `resolution`: longest axis ~ `leading_multiple * resolution` voxels (default 128; adjusted to match Trimesh’s voxel grid behavior).
   - `split`: optional integer to segment along the leading axis and stitch a globally filled lattice; `num_processes` controls parallel workers.
+  - `leading_multiple`: target multiple for the leading axis voxel count and LBM padding. Use the default 128 for existing behavior or set, e.g., `100` to retarget both pitch and LBM divisibility.
   - `expected_in_outs`: iterable or dict of boundary tags to apply — any of `{N,E,S,W,B,F}` enables the corresponding domain wall labels (see Labels below). Dict inputs use truthy values to toggle faces.
 - Methods:
   - `generate_voxel_mesh()` → computes `voxelized_mesh` as a boolean array.
@@ -189,9 +190,9 @@ When exporting text, missing domain faces are padded by a single wall layer to e
 - Shapes are normalized to the expected target derived from bounds and pitch, ensuring split and no‑split runs are identical.
 - For large models, start with small `resolution` (1–2) before scaling up; increase `split`/`num_processes` as needed to stay within memory limits.
 
-Pitch and shape: The voxel pitch is chosen so the longest axis approximates `128 * resolution` cells. Trimesh’s VoxelGrid yields `N ≈ floor(extent / pitch) + 1` per axis; we set pitch from the longest extent to achieve the target and then normalize results to match the expected dims without trailing empty planes.
+Pitch and shape: The voxel pitch is chosen so the longest axis approximates `leading_multiple * resolution` cells (default 128). Trimesh’s VoxelGrid yields `N ≈ floor(extent / pitch) + 1` per axis; we set pitch from the longest extent to achieve the target and then normalize results to match the expected dims without trailing empty planes.
 
-LBM shape normalization: For LBM grid completion, the leading dimension must be a multiple of 128; the remaining dimensions are rounded up to the nearest multiple of 32.
+LBM shape normalization: For LBM grid completion, the leading dimension must be a multiple of `leading_multiple` (default 128); the remaining dimensions are rounded up to the nearest multiple of 32.
 
 Watertightness note: Splitting assumes robust slicing of a closed surface. For STL inputs, ensure watertightness for best results; light repairs (normals/winding, small hole filling) are attempted but not guaranteed.
 
@@ -205,7 +206,7 @@ Performance: Avoids per-voxel Python loops and relies on NumPy/Scipy vectorizati
 
 ## Testing Guidance
 
-- Quick shape sanity: with `split=None`, the longest axis should equal `≈ 128 * resolution`.
+- Quick shape sanity: with `split=None`, the longest axis should equal `≈ leading_multiple * resolution` (128 by default).
 - Split equivalence: split and no‑split runs should match dimensions after normalization.
 - Use small `resolution` (1–2) for fast checks; verify both routes (.geo and STL) produce the same dims.
 - Validate label distributions: expect values in `{0,1,2,3,4,5}` and optionally `{11..16}` when domain tags are requested.

@@ -16,6 +16,7 @@ class Geometry:
         output_dir="output",
         expected_in_outs=None,
         stl_path=None,
+        leading_multiple=128,
         **kwargs,
     ):
         """
@@ -29,6 +30,9 @@ class Geometry:
         num_processes (int, optional): Number of processes to use for parallel voxelization.
                                        Default is 1 (no parallelism).
         output_dir (str, optional): Directory where output files will be stored. Default is 'output'.
+        leading_multiple (int, optional): Target multiple for the leading axis (default 128). Controls
+                                          voxel pitch (~leading_multiple*resolution along the longest
+                                          axis) and LBM grid padding requirements.
         **kwargs: Additional parameters for customizing the geometry.
         """
         self.name = name
@@ -38,6 +42,7 @@ class Geometry:
         self.output_dir = output_dir
         self.kwargs = kwargs
         self.stl_path = stl_path
+        self.leading_multiple = leading_multiple
 
         # Ensure output directory exists
         if not os.path.exists(output_dir):
@@ -71,6 +76,7 @@ class Geometry:
                 res=self.resolution,
                 split=self.split,
                 num_processes=self.num_processes,
+                leading_multiple=self.leading_multiple,
             )
         else:
             self.voxelized_mesh = voxelize_mesh(
@@ -78,6 +84,7 @@ class Geometry:
                 res=self.resolution,
                 split=self.split,
                 num_processes=self.num_processes,
+                leading_multiple=self.leading_multiple,
                 **self.kwargs,
             )
         print(f"Voxel mesh generation complete. Shape: {self.voxelized_mesh.shape}")
@@ -195,7 +202,9 @@ class Geometry:
             self.lbm_mesh = None
         else:
             self.lbm_mesh = generate_lbm_mesh(
-                self.voxelized_mesh, expected_in_outs=self.expected_in_outs
+                self.voxelized_mesh,
+                expected_in_outs=self.expected_in_outs,
+                leading_multiple=self.leading_multiple,
             )
 
             print(f"LBM mesh generation complete. Shape: {self.lbm_mesh.shape}")

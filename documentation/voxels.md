@@ -4,7 +4,7 @@ The `voxels` module performs voxelization (with or without splitting), filling, 
 
 ## Overview
 
-- Pitch selection: pitch is chosen so the longest axis yields approximately `128 * resolution` cells, aligning with Trimesh VoxelGrid behavior (`N ≈ ceil(extent/pitch) + 1`).
+- Pitch selection: pitch is chosen so the longest axis yields approximately `leading_multiple * resolution` cells (default 128), aligning with Trimesh VoxelGrid behavior (`N ≈ ceil(extent/pitch) + 1`).
 - Splitting: the mesh is partitioned along the leading axis, segments are voxelized independently (optionally in parallel), stitched into a single grid, and then sealed with a one-voxel binary dilation before the global fill. This closes seams introduced by segmentation so the final lattice is identical to the no‑split path.
 - Labeling: boolean occupancy is transformed into solver labels: 0 outside, 1 fluid, 2 wall, and near‑wall bands 3/4/5; optionally 11..16 for domain face tags.
 
@@ -16,6 +16,7 @@ The `voxels` module performs voxelization (with or without splitting), filling, 
 voxelize_mesh(name: str, res: int = 1,
               split: int | None = None,
               num_processes: int = 1,
+              leading_multiple: int = 128,
               **kwargs) -> np.ndarray
 ```
 
@@ -44,7 +45,8 @@ print(occ.shape, occ.dtype)
 ```
 voxelize_stl(path: str, res: int = 1,
              split: int | None = None,
-             num_processes: int = 1) -> np.ndarray
+             num_processes: int = 1,
+             leading_multiple: int = 128) -> np.ndarray
 ```
 
 Pipeline: `STL → voxels`. Accepts absolute or relative STL path. Ensures a closed surface if possible (light repairs on normals/winding/holes); then voxelizes. When `split` is provided, faces are partitioned along the leading axis, segments are voxelized (optionally in parallel), stitched, and filled once globally.
@@ -66,7 +68,7 @@ occ = voxelize_stl("examples/glenn_capped.stl", res=2)
 ### Filling and Completion
 
 - `fill_mesh_inside_surface(mesh)` — fill internal voids via `scipy.ndimage.binary_fill_holes`.
-- `complete_mesh(original_mesh, num_type='bool', expected_in_outs=None)` — enforce LBM-friendly shape; embeds the mesh into a grid where the leading dimension is a multiple of 128 and the others are rounded up to a multiple of 32. If `num_type='int'`, returns integer labels.
+- `complete_mesh(original_mesh, num_type='bool', expected_in_outs=None, leading_multiple=128)` — enforce LBM-friendly shape; embeds the mesh into a grid where the leading dimension is a multiple of `leading_multiple` (default 128) and the others are rounded up to a multiple of 32. If `num_type='int'`, returns integer labels.
 
 ### Labeling and Export Prep
 

@@ -151,29 +151,33 @@ def fill_extended_mesh(original_mesh, new_mesh, num_type='bool', expected_in_out
     return labeled
 
 
-def get_lbm_shape(original_shape):
+def get_lbm_shape(original_shape, leading_multiple=128):
     """
     Adjust the shape of a 3D object to make it suitable for Lattice Boltzmann Method (LBM) simulations.
 
-    This function checks if the leading dimension of the original shape is a multiple of 128.
+    This function checks if the leading dimension of the original shape is a multiple of `leading_multiple`.
     If not, it raises a ValueError. Then, it adjusts the remaining dimensions to be the smallest
     multiple of 32 that is greater than or equal to the maximum of these dimensions, keeping the
     leading dimension unchanged.
 
     Parameters:
     original_shape (tuple or list): A 3-element iterable representing the original shape dimensions (x, y, z).
+    leading_multiple (int): Required multiple for the leading dimension (default 128).
 
     Returns:
     tuple: The new shape, adjusted for LBM simulations.
 
     Raises:
-    ValueError: If the leading dimension of the original shape is not a multiple of 128.
+    ValueError: If the leading dimension of the original shape is not a multiple of ``leading_multiple``.
     """
     # Identify the leading direction (dimension) of the shape
     direction_idx = get_leading_direction(original_shape)
 
-    # Check if the leading dimension is a multiple of 128, raise an error if not
-    if (original_shape[direction_idx] % 128) != 0:
+    if leading_multiple <= 0:
+        raise ValueError("leading_multiple must be a positive integer.")
+
+    # Check if the leading dimension is a multiple of the requested stride, raise an error if not
+    if (original_shape[direction_idx] % leading_multiple) != 0:
         error_msg = f"Shape {original_shape} is not suitable for LBM simulation."
         raise ValueError(error_msg)
 
@@ -194,7 +198,7 @@ def get_lbm_shape(original_shape):
     return new_shape
 
 
-def complete_mesh(original_mesh, num_type='bool', expected_in_outs=None):
+def complete_mesh(original_mesh, num_type='bool', expected_in_outs=None, leading_multiple=128):
     """
     Adjust an original mesh to make it suitable for Lattice Boltzmann Method (LBM) simulations.
 
@@ -204,6 +208,10 @@ def complete_mesh(original_mesh, num_type='bool', expected_in_outs=None):
 
     Parameters:
     original_mesh (numpy.ndarray): The original mesh to be adjusted.
+    num_type (str): 'bool' for occupancy, 'int' for labels.
+    expected_in_outs (dict or iterable, optional): Domain faces to tag.
+    leading_multiple (int, optional): Required multiple for the leading dimension when embedding
+                                      into an LBM-friendly domain. Defaults to 128.
 
     Returns:
     numpy.ndarray: The new mesh, adjusted in shape and filled, suitable for LBM simulations.
@@ -212,7 +220,7 @@ def complete_mesh(original_mesh, num_type='bool', expected_in_outs=None):
     original_shape = original_mesh.shape
 
     # Determine the new shape suitable for LBM simulations
-    new_shape = get_lbm_shape(original_shape)
+    new_shape = get_lbm_shape(original_shape, leading_multiple=leading_multiple)
 
     # Create an empty mesh with the new shape
     empty_mesh = np.zeros(new_shape, dtype=bool)
@@ -483,7 +491,7 @@ def fill_slice(mesh_slice, leading_direction):
     return mesh_slice
 
 
-def calculate_voxel_size(mesh, res):
+def calculate_voxel_size(mesh, res, leading_multiple=128):
     """
     Calculate the voxel size for a mesh based on the specified resolution.
 
@@ -494,6 +502,7 @@ def calculate_voxel_size(mesh, res):
     Parameters:
     mesh (trimesh.Trimesh): The mesh for which the voxel size is being calculated.
     res (float): The desired resolution, used as a factor in the calculation.
+    leading_multiple (int, optional): Target multiple for the longest axis voxel count. Defaults to 128.
 
     Returns:
     float: The calculated voxel size.
@@ -502,10 +511,10 @@ def calculate_voxel_size(mesh, res):
     maxima = [np.max(mesh.bounds[:, i]) - np.min(mesh.bounds[:, i]) for i in range(3)]
     h = np.max(maxima)
 
-    # Choose pitch so the longest axis yields ~128*res cells.
+    # Choose pitch so the longest axis yields ~leading_multiple*res cells.
     # VoxelGrid commonly yields N = floor(extent / pitch) + 1 along an axis.
     # Use (target-1) in the denominator to drive N ≈ target.
-    target = max(1, int(128 * res))
+    target = max(1, int(leading_multiple * res))
     denom = max(1, target - 1)
     voxel_size = h / denom
 
@@ -657,7 +666,7 @@ def voxelize_with_splitting(mesh, voxel_size, split, num_processes=1, target_bou
     return occupancy
 
 
-def voxelize_mesh(name, res=1, split=None, num_processes=1, **kwargs):
+def voxelize_mesh(name, res=1, split=None, num_processes=1, leading_multiple=128, **kwargs):
     """
     Load a mesh from a file, voxelize it with or without splitting, and adjust it for LBM simulations.
 
@@ -673,6 +682,9 @@ def voxelize_mesh(name, res=1, split=None, num_processes=1, **kwargs):
                            If None, the mesh is voxelized without splitting. Default is None.
     num_processes(int, optional): The number of subprocesses the main process should be divided into.
                                   Default 1 = no subprocesses.
+    leading_multiple (int, optional): Target multiple applied to the leading axis. The voxel pitch is
+                                      chosen so the longest axis has ~leading_multiple * res cells.
+                                      Defaults to 128 to preserve existing behavior.
 
 
     Returns:
@@ -689,7 +701,7 @@ def voxelize_mesh(name, res=1, split=None, num_processes=1, **kwargs):
     mesh = trm.load(stl_file_path)
 
     # Calculate the voxel size based on the mesh's bounds and resolution factor
-    voxel_size = calculate_voxel_size(mesh, res)
+    voxel_size = calculate_voxel_size(mesh, res, leading_multiple=leading_multiple)
 
     if split is None:
         # Voxelize the mesh without splitting and normalize to expected dims
@@ -716,16 +728,18 @@ def voxelize_mesh(name, res=1, split=None, num_processes=1, **kwargs):
     return output
 
 
-def voxelize_stl(path, res=1, split=None, num_processes=1):
+def voxelize_stl(path, res=1, split=None, num_processes=1, leading_multiple=128):
     """
     Voxelize a closed STL surface directly, with optional splitting.
 
     Parameters:
     - path: path to the input STL file (must be closed/watertight for correct filling).
-    - res: resolution scale; longest axis ~ 128*res voxels.
+    - res: resolution scale; longest axis ~ leading_multiple * res voxels.
     - split: if None, voxelize as a single mesh; otherwise, split into this many segments
              along the leading direction and process in parallel.
     - num_processes: parallel workers when splitting.
+    - leading_multiple: target multiple for longest axis voxel count (default 128 for backwards
+                        compatibility); also used for LBM padding downstream.
 
     Returns:
     - numpy.ndarray of dtype bool containing occupancy (True=inside/solid)
@@ -745,7 +759,7 @@ def voxelize_stl(path, res=1, split=None, num_processes=1):
         except Exception:
             pass
 
-    voxel_size = calculate_voxel_size(mesh, res)
+    voxel_size = calculate_voxel_size(mesh, res, leading_multiple=leading_multiple)
 
     if split is None:
         occ = voxelize_elementary(mesh, voxel_size)
@@ -766,11 +780,33 @@ def voxelize_stl(path, res=1, split=None, num_processes=1):
 
     # Splitting: segment and voxelize directly from the original mesh, then stitch.
     bounds = mesh.bounds
-    return voxelize_with_splitting(mesh, voxel_size, split, num_processes=num_processes, target_bounds=bounds)
+    return voxelize_with_splitting(
+        mesh,
+        voxel_size,
+        split,
+        num_processes=num_processes,
+        target_bounds=bounds,
+    )
 
 
-def generate_lbm_mesh(original_mesh, expected_in_outs=None):
-    lbm_mesh = complete_mesh(original_mesh, num_type='int', expected_in_outs=expected_in_outs)
+def generate_lbm_mesh(original_mesh, expected_in_outs=None, leading_multiple=128):
+    """
+    Embed an occupancy grid into an LBM-friendly domain and apply labels.
+
+    Parameters:
+    original_mesh (numpy.ndarray): Occupancy grid to embed.
+    expected_in_outs (dict or iterable, optional): Domain faces to tag.
+    leading_multiple (int, optional): Required multiple for the leading dimension. Defaults to 128.
+
+    Returns:
+    numpy.ndarray: Integer labeled volume ready for export.
+    """
+    lbm_mesh = complete_mesh(
+        original_mesh,
+        num_type='int',
+        expected_in_outs=expected_in_outs,
+        leading_multiple=leading_multiple,
+    )
 
     return lbm_mesh
 
