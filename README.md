@@ -141,6 +141,17 @@ geom.save_voxel_mesh_to_text("glenn_voxel_mesh.txt")  # writes geom_/dim_/val_ f
 
 This route produces the same output format as the `.geo` route and supports segment-based splitting with the same semantics.
 
+### Example: glenn_extended STL (north inlet, dual outlets)
+
+The repository ships `glenn_extended.stl` (N inlet, E/W outlets). Run the helper script to voxelize it at resolution 4, apply domain wall tags for `{N, E, W}`, write the geom_/dim_/val_ triplet into `examples/output/`, and open a Mayavi window:
+
+```bash
+conda activate meshgen
+python examples/glenn_extended_visualize.py
+```
+
+The script uses the STL → voxels route, so you can swap in another watertight STL by pointing `Geometry(stl_path=...)` to a different file.
+
 ## Geometry API (Python)
 
 - `Geometry(name=None, resolution=1, split=None, num_processes=1, output_dir="output", expected_in_outs=None, stl_path=None, leading_multiple=128, **kwargs)`

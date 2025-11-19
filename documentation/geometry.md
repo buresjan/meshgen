@@ -93,6 +93,15 @@ geom.generate_voxel_mesh()
 geom.save_voxel_mesh_to_text("glenn_capped.txt")
 ```
 
+To run this flow end-to-end on the repository’s `glenn_extended.stl` (north inlet with east/west outlets and `expected_in_outs={"N","E","W"}`), execute:
+
+```bash
+conda activate meshgen
+python examples/glenn_extended_visualize.py
+```
+
+The script voxelizes the STL at resolution 4, writes the `geom_*/dim_*/val_*` triplet to `examples/output/`, and visualizes the result via Mayavi for a quick sanity-check.
+
 ### 3) Split parameter (API compatibility)
 
 ```python
