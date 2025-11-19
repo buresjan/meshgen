@@ -143,7 +143,7 @@ This route produces the same output format as the `.geo` route and supports segm
 
 ### Example: glenn_extended STL (north inlet, dual outlets)
 
-The repository ships `glenn_extended.stl` (N inlet, E/W outlets). Run the helper script to voxelize it at resolution 4, apply domain wall tags for `{N, E, W}`, write the geom_/dim_/val_ triplet into `examples/output/`, and open a Mayavi window:
+The repository ships `glenn_extended.stl` (N inlet, E/W outlets). The STL is now fully capped on the N/E/W openings and sanitized to drop the historical 8-triangle speck that produced a trailing fluid voxel during discretization. Run the helper script to voxelize it at resolution 4, apply domain wall tags for `{N, E, W}`, write the geom_/dim_/val_ triplet into `examples/output/`, and open a Mayavi window:
 
 ```bash
 conda activate meshgen
@@ -151,6 +151,12 @@ python examples/glenn_extended_visualize.py
 ```
 
 The script uses the STL → voxels route, so you can swap in another watertight STL by pointing `Geometry(stl_path=...)` to a different file.
+
+Need to regenerate the cleaned STL? Use the helper in `scripts/repair_glenn_stl.py` to drop stray fragments and copy the watertight, capped surface wherever it is needed:
+
+```bash
+python scripts/repair_glenn_stl.py --input examples/glenn_capped.stl --output glenn_extended.stl
+```
 
 ## Geometry API (Python)
 

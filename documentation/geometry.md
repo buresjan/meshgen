@@ -100,7 +100,9 @@ conda activate meshgen
 python examples/glenn_extended_visualize.py
 ```
 
-The script voxelizes the STL at resolution 4, writes the `geom_*/dim_*/val_*` triplet to `examples/output/`, and visualizes the result via Mayavi for a quick sanity-check.
+The STL now ships capped on the N/E/W ends and cleaned with `scripts/repair_glenn_stl.py`, so voxelization no longer leaves an isolated trailing fluid voxel. Re-run the helper if you ever need to regenerate the sanitized STL from the `examples/glenn_capped.stl` source.
+
+The visualization script voxelizes the STL at resolution 4, writes the `geom_*/dim_*/val_*` triplet to `examples/output/`, and visualizes the result via Mayavi for a quick sanity-check.
 
 ### 3) Split parameter (API compatibility)
 

@@ -19,11 +19,11 @@ from meshgen.geometry import Geometry
 def main():
     expected_faces = {"N", "E", "W"}  # inlet @N, outlets @E/W
     repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
-    stl_path = os.path.join(repo_root, "glenn_extended.stl")
+    stl_path = os.path.join(repo_root, "examples/glenn_capped.stl")
 
     geom = Geometry(
         stl_path=stl_path,
-        resolution=4,
+        resolution=5,
         split=None,
         num_processes=1,
         output_dir="examples/output",

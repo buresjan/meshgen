@@ -60,6 +60,8 @@ from meshgen.voxels import voxelize_stl
 occ = voxelize_stl("examples/glenn_capped.stl", res=2)
 ```
 
+> The shipped `examples/glenn_capped.stl` is already capped on N/E/W and cleaned via `scripts/repair_glenn_stl.py`, so the STL → voxels path no longer produces trailing single-voxel fragments.
+
 ### Splitting Helpers
 
 - `split_mesh(mesh, voxel_size, n_segments)` — partitions faces along the leading axis with overlap.
