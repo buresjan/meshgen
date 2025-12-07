@@ -121,3 +121,12 @@ Notes:
 - The current implementation ensures equivalence by computing a single global voxelization; `split` does not change the output or parallelize the voxelization itself.
 - For best STL results, ensure watertightness. Minor repairs are attempted automatically.
 - Installation uses `pyproject.toml`; use `pip install -e .` (pip ≥ 21) to get an editable checkout.
+
+### 4) Minimal STL voxelization with Mayavi only
+
+If you only need a quick voxelization + viewer (no text export), run the lean script that targets the repository’s root-level `master_combined_capped.stl` at resolution 4. It prints the STL bounds and physical size (in STL units) before voxelization so you can sanity-check scale:
+
+```bash
+conda activate meshgen
+python examples/master_combined_visualize.py
+```

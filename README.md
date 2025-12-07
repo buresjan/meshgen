@@ -158,6 +158,15 @@ Need to regenerate the cleaned STL? Use the helper in `scripts/repair_glenn_stl.
 python scripts/repair_glenn_stl.py --input examples/glenn_capped.stl --output glenn_extended.stl
 ```
 
+### Minimal STL voxelization + Mayavi view
+
+For a bare-bones STL → voxels → Mayavi pass (no text output), voxelize the root-level `master_combined_capped.stl` at resolution 4. The script also prints the STL bounds and physical size (same units as the STL) before voxelization so you can confirm the scale:
+
+```bash
+conda activate meshgen
+python examples/master_combined_visualize.py
+```
+
 ## Geometry API (Python)
 
 - `Geometry(name=None, resolution=1, split=None, num_processes=1, output_dir="output", expected_in_outs=None, stl_path=None, leading_multiple=128, **kwargs)`
