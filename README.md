@@ -166,7 +166,6 @@ For a bare-bones STL → voxels → Mayavi pass (no text output), voxelize the r
 conda activate meshgen
 python examples/master_combined_visualize.py
 ```
-
 ## Geometry API (Python)
 
 - `Geometry(name=None, resolution=1, split=None, num_processes=1, output_dir="output", expected_in_outs=None, stl_path=None, leading_multiple=128, **kwargs)`
@@ -244,7 +243,6 @@ Detailed module guides with inline examples live under `documentation/`:
 - `documentation/geometry.md` — high-level API and workflows
 - `documentation/mesher.md` — Gmsh templating and STL generation
 - `documentation/voxels.md` — voxelization, splitting, labeling, and export
-- `documentation/utilities.md` — visualization and text export helpers
 
 If you change code or behavior, update both this README and the relevant module guides.
 
