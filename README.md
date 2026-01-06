@@ -9,7 +9,7 @@ This toolkit generates and voxelizes 3D geometries from either parametric `.geo`
 - **Geometry Generation**: Generate 3D geometries based on `.geo` templates.
 - **Voxelization**: Convert complex 3D geometries into voxelized representations.
 - **Parallel Processing**: Split along the leading axis and voxelize segments (optionally in parallel) while stitching back to the same grid as a single-pass run.
-- **Visualization**: Visualize the voxelized mesh using Mayavi.
+- **Visualization**: Visualize the voxelized mesh using Mayavi (optional extra).
 - **Flexible Storage**: Save voxelized meshes as binary `.npy` files or as human-readable `.txt` files.
 
 ## Pipelines
@@ -29,14 +29,17 @@ Important details:
 
 ## Requirements
 
-The package requires the following Python libraries:
+Core requirements:
 
-- `gmsh` (only needed for the `.geo` templated route; STL-only workflows can omit it)
-- `trimesh`
 - `numpy`
 - `scipy`
-- `mayavi`
+- `trimesh`
+- `gmsh` (only needed for the `.geo` templated route; STL-only workflows can omit it)
 - `tqdm`
+
+Optional visualization:
+
+- `mayavi` (install with `.[vis]` or use the conda environment; not available on Python 3.13)
 
 ## Installation
 
@@ -68,21 +71,22 @@ Notes:
 
 ### Option B: Pip-only install
 
-If you already have a working Python environment and do not need Mayavi/VTK from Conda:
+If you already have a working Python environment:
 
 ```bash
 pip install -e .
 ```
 
-You will also need to install the runtime dependencies yourself:
+Optional visualization stack (Mayavi):
 
 ```bash
-pip install numpy scipy trimesh gmsh mayavi tqdm
+pip install -e .[vis]
 ```
 
-If you only rely on the STL route you may skip installing `gmsh`.
+If you only rely on the STL route you may skip installing `gmsh` by using `--no-deps` and adding only what you need.
 
 Notes:
+- Mayavi does not ship wheels for Python 3.13; use the conda environment (Python 3.10) or a Python 3.10/3.11 venv for visualization.
 - The project now ships a `pyproject.toml`; ensure you are using `pip >= 21` so editable installs work with the PEP 517 backend.
 - Add `.[dev]` to pick up optional development dependencies (e.g., `pip install -e .[dev]` for Black).
 
@@ -109,6 +113,7 @@ geom.save_voxel_mesh_to_text("tcpc_voxel_mesh.txt")
 geom.visualize()
 
 ```
+Visualization requires Mayavi; install `meshgen[vis]` or use the conda environment.
 
 ### Quick example: junction_2d visualization (Mayavi, single process)
 
@@ -178,7 +183,7 @@ conda activate meshgen
 python fantom.py
 ```
 
-Edit the `USER CONFIG` block in `fantom.py` to set the STL path, taper parameters, target voxel count, and end label values. You can also add a 1-voxel padding on faces that are not expected outlets via `PAD_EMPTY_FACES`, `PAD_THICKNESS`, `EXPECTED_OUT_FACES`, and `PAD_VALUE` (default pads with label 2). Mayavi hides the padded layer when `HIDE_PAD_IN_MAYAVI=True`. The script prints STL bounds and voxel spacing after voxelization, exports the `geom_/dim_/val_` triplet, and can open a hollow Mayavi view with per-label colors and a simple legend.
+Edit the `USER CONFIG` block in `fantom.py` to set the STL path, taper parameters, target voxel count, and end label values. You can also add a 1-voxel padding on faces that are not expected outlets via `PAD_EMPTY_FACES`, `PAD_THICKNESS`, `EXPECTED_OUT_FACES`, and `PAD_VALUE` (default pads with label 2). Mayavi hides the padded layer when `HIDE_PAD_IN_MAYAVI=True`. The script prints STL bounds and voxel spacing after voxelization, exports the `geom_/dim_/val_` triplet, and can open a hollow Mayavi view with per-label colors and a simple legend. The taper step uses Trimesh `update_faces(unique_faces())` and `update_faces(nondegenerate_faces())` for cleanup, so ensure your Trimesh build exposes those helpers.
 ## Geometry API (Python)
 
 - `Geometry(name=None, resolution=1, split=None, num_processes=1, output_dir="output", expected_in_outs=None, stl_path=None, leading_multiple=128, **kwargs)`

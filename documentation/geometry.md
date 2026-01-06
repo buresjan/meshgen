@@ -42,7 +42,7 @@ Methods:
 - `save_voxel_mesh_to_text(path="voxel_mesh.txt")` → write `geom_/dim_/val_` text triplet.
 - `generate_lbm_mesh()` → complete to solver grid and compute labels.
 - `save_lbm_mesh_to_text(path="lbm_mesh.txt")` → write labeled volume in triplet format.
-- `visualize()` → render the voxel surface with Mayavi.
+- `visualize()` → render the voxel surface with Mayavi (requires `meshgen[vis]` or the conda environment).
 
 ## Examples
 
@@ -120,7 +120,7 @@ Notes:
 - Both routes yield the same text triplet and label semantics.
 - The current implementation ensures equivalence by computing a single global voxelization; `split` does not change the output or parallelize the voxelization itself.
 - For best STL results, ensure watertightness. Minor repairs are attempted automatically.
-- Installation uses `pyproject.toml`; use `pip install -e .` (pip ≥ 21) to get an editable checkout.
+- Installation uses `pyproject.toml`; use `pip install -e .` (pip >= 21) for core deps, and `pip install -e .[vis]` for Mayavi visualization (not available on Python 3.13; use conda or Python 3.10/3.11).
 
 ### 4) Minimal STL voxelization with Mayavi only
 
@@ -145,4 +145,4 @@ conda activate meshgen
 python fantom.py
 ```
 
-Edit the `USER CONFIG` section in `fantom.py` to set the STL path, taper parameters, `LONGEST_AXIS_VOXELS`, and end label values. You can also pad non-expected faces with a 1-voxel layer via `PAD_EMPTY_FACES`, `PAD_THICKNESS`, `EXPECTED_OUT_FACES`, and `PAD_VALUE` (default pads with label 2). Mayavi hides the padded layer when `HIDE_PAD_IN_MAYAVI=True`. The script prints STL bounds and voxel spacing after voxelization, exports `geom_/dim_/val_`, and can open a hollow Mayavi view with per-label colors.
+Edit the `USER CONFIG` section in `fantom.py` to set the STL path, taper parameters, `LONGEST_AXIS_VOXELS`, and end label values. You can also pad non-expected faces with a 1-voxel layer via `PAD_EMPTY_FACES`, `PAD_THICKNESS`, `EXPECTED_OUT_FACES`, and `PAD_VALUE` (default pads with label 2). Mayavi hides the padded layer when `HIDE_PAD_IN_MAYAVI=True`. The script prints STL bounds and voxel spacing after voxelization, exports `geom_/dim_/val_`, and can open a hollow Mayavi view with per-label colors. The taper step uses Trimesh `update_faces(unique_faces())` and `update_faces(nondegenerate_faces())` for cleanup, so ensure your Trimesh build exposes those helpers.

@@ -633,8 +633,11 @@ def _apply_taper_and_cap(
     out = trimesh.Trimesh(vertices=vertices, faces=faces_out, process=False)
 
     # Clean up (helps make STL more robust for downstream tools)
-    out.remove_duplicate_faces()
-    out.remove_degenerate_faces()
+    out.update_faces(out.unique_faces())
+    if hasattr(out, "remove_degenerate_faces"):
+        out.remove_degenerate_faces()
+    else:
+        out.update_faces(out.nondegenerate_faces())
     out.remove_unreferenced_vertices()
     out.merge_vertices()
 

@@ -85,3 +85,4 @@ print("Boxed STL:", boxed)
 - Use absolute or relative STL paths in `box_stl`; bare names resolve to `meshgen/stl_models/<name>.stl`.
 - Callers must ensure Gmsh is installed before using `gmsh_surface` or `box_stl`; otherwise a descriptive `RuntimeError` is raised.
 - Template and STL assets are bundled via the package-data configuration in `pyproject.toml`; editable installs require `pip >= 21` (PEP 517).
+- Install via `pip install -e .` for core deps, and add `pip install -e .[vis]` for Mayavi visualization (not available on Python 3.13; use conda or Python 3.10/3.11).

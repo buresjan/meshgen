@@ -131,7 +131,7 @@ print(np.unique(labels))  # expect 0,1,2,3,4,5 and optionally 11..16
 
 - All heavy operations are vectorized; avoid writing per-voxel Python loops around these APIs.
 - Ensure inputs are closed surfaces for reliable filling; light repairs are attempted but not guaranteed.
-- Install the package via the `pyproject.toml` metadata (`pip install -e .` with pip ≥ 21 for editable worktrees).
+- Install via the `pyproject.toml` metadata: `pip install -e .` (pip >= 21) for core deps, `pip install -e .[vis]` for Mayavi visualization (not available on Python 3.13; use conda or Python 3.10/3.11).
 
 ### Face Tagging Semantics
 

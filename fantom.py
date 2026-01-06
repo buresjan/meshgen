@@ -86,7 +86,7 @@ PAD_EMPTY_FACES: bool = True
 PAD_THICKNESS: int = 1
 EXPECTED_OUT_FACES: Sequence[str] = ("y_min", "y_max")
 PAD_VALUE: int = 2
-HIDE_PAD_IN_MAYAVI: bool = False
+HIDE_PAD_IN_MAYAVI: bool = True
 
 # -----------------------------------------------------------------------------#
 # Visualization (Mayavi)

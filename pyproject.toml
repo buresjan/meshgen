@@ -17,13 +17,15 @@ dependencies = [
   "scipy",
   "trimesh",
   "gmsh",
-  "mayavi",
   "tqdm",
 ]
 
 [project.optional-dependencies]
 dev = [
   "black",
+]
+vis = [
+  "mayavi",
 ]
 
 [project.urls]

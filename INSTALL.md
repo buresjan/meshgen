@@ -50,6 +50,9 @@ Optional:
 ```bash
 # Development deps
 pip install -e .[dev]
+
+# Visualization deps (Mayavi)
+pip install -e .[vis]
 ```
 
 Notes:
@@ -65,3 +68,6 @@ pip install numpy scipy trimesh tqdm
 
 - Ensure you are using `pip >= 21` so editable installs work with the PEP 517
   backend.
+- Mayavi does not ship wheels for Python 3.13; source builds often crash. Use
+  the conda environment (Python 3.10) or a Python 3.10/3.11 venv if you need
+  visualization.
