@@ -166,6 +166,19 @@ For a bare-bones STL → voxels → Mayavi pass (no text output), voxelize the r
 conda activate meshgen
 python examples/master_combined_visualize.py
 ```
+
+### Fantom pipeline: taper + target voxel count + per-end labels
+
+The root-level `fantom.py` script wraps the `tcpc_taper_ends.py` end-taper workflow, then voxelizes using a target number of voxels on the longest axis (`LONGEST_AXIS_VOXELS`) instead of a resolution factor. It assigns distinct inlet/outlet labels on the Y extremes: one end on `y_max` and three separate ends on `y_min` (default labels 21, 22, 23, 24). Standard voxel labels (0/1/2/3/4/5) are preserved.
+
+Run:
+
+```bash
+conda activate meshgen
+python fantom.py
+```
+
+Edit the `USER CONFIG` block in `fantom.py` to set the STL path, taper parameters, target voxel count, and end label values. You can also add a 1-voxel padding on faces that are not expected outlets via `PAD_EMPTY_FACES`, `PAD_THICKNESS`, `EXPECTED_OUT_FACES`, and `PAD_VALUE` (default pads with label 2). Mayavi hides the padded layer when `HIDE_PAD_IN_MAYAVI=True`. The script prints STL bounds and voxel spacing after voxelization, exports the `geom_/dim_/val_` triplet, and can open a hollow Mayavi view with per-label colors and a simple legend.
 ## Geometry API (Python)
 
 - `Geometry(name=None, resolution=1, split=None, num_processes=1, output_dir="output", expected_in_outs=None, stl_path=None, leading_multiple=128, **kwargs)`

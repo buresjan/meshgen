@@ -79,6 +79,18 @@ occ = voxelize_stl("examples/glenn_capped.stl", res=2)
 - `assign_near_walls`, `assign_near_near_walls`, `assign_near_near_near_walls` — set labels 3, 4, and 5 on fluid voxels adjacent to 2, 3, and 4, respectively.
 - `prepare_voxel_mesh_txt(mesh, expected_in_outs=None, num_type='int')` — produce the labeled volume for export; pads missing domain faces with a one‑voxel wall layer; adds near‑wall bands; reapplies face tags on fluid boundary planes last so they override near‑wall. Accepts any iterable of faces or a mapping of `face -> enabled` flags.
 
+### Custom End Tags (fantom.py)
+
+The standalone `fantom.py` script applies additional inlet/outlet tags after running `prepare_voxel_mesh_txt`. It identifies connected components on the `y_min` and `y_max` fluid boundary planes and overwrites those plane voxels with distinct labels. Defaults:
+
+- `y_max` opening → 21
+- three `y_min` openings → 22, 23, 24 (sorted by (x, z) centroid order)
+
+These labels are script-specific and do not alter the core module semantics (0/1/2/3/4/5 and optional 11..16 remain unchanged elsewhere).
+
+The script can also pad non-expected faces with a 1-voxel layer using `PAD_EMPTY_FACES`, `PAD_THICKNESS`, `EXPECTED_OUT_FACES`, and `PAD_VALUE` (default pads with label 2). This expands the exported array only on faces that are not part of the expected outlets; Mayavi hides the padded layer when `HIDE_PAD_IN_MAYAVI=True`.
+It prints the STL bounds and voxel spacing after voxelization for quick scale checks.
+
 ## End-to-End Examples
 
 ### 1) Templated route

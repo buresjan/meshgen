@@ -130,3 +130,19 @@ If you only need a quick voxelization + viewer (no text export), run the lean sc
 conda activate meshgen
 python examples/master_combined_visualize.py
 ```
+
+### 5) Fantom pipeline (taper + target voxel count + per-end labels)
+
+The root-level `fantom.py` script is a standalone workflow that:
+- reuses the `tcpc_taper_ends.py` end-taper controls,
+- voxelizes by target voxel count on the longest axis (not `resolution`), and
+- assigns distinct tags to the four end openings (one on `y_max`, three on `y_min`).
+
+Run it as-is:
+
+```bash
+conda activate meshgen
+python fantom.py
+```
+
+Edit the `USER CONFIG` section in `fantom.py` to set the STL path, taper parameters, `LONGEST_AXIS_VOXELS`, and end label values. You can also pad non-expected faces with a 1-voxel layer via `PAD_EMPTY_FACES`, `PAD_THICKNESS`, `EXPECTED_OUT_FACES`, and `PAD_VALUE` (default pads with label 2). Mayavi hides the padded layer when `HIDE_PAD_IN_MAYAVI=True`. The script prints STL bounds and voxel spacing after voxelization, exports `geom_/dim_/val_`, and can open a hollow Mayavi view with per-label colors.
