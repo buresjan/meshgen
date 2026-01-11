@@ -66,6 +66,8 @@ Notes:
 - If you are on a headless server and do not need visualization, you can remove `mayavi`, `vtk`, and `pyqt`
   from `environment.yml` before creating the environment.
 - Gmsh is provided from conda-forge with the Python API. Ensure OpenGL support is available for Mayavi.
+- The combined environment pins VEF-related packages (e.g., `pyvista=0.44.*`, `vtk=9.3.*`) to satisfy its
+  requirements and avoid pip/conda conflicts; adjust them together if you change versions.
 
 ### Option B: Pip-only install
 

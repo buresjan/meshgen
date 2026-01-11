@@ -86,3 +86,4 @@ print("Boxed STL:", boxed)
 - Callers must ensure Gmsh is installed before using `gmsh_surface` or `box_stl`; otherwise a descriptive `RuntimeError` is raised.
 - Template and STL assets are bundled via the package-data configuration in `pyproject.toml`; editable installs require `pip >= 21` (PEP 517).
 - If you plan to use the `vascular_encoding_framework` submodule, install it in the same environment (`pip install -e vascular_encoding_framework` or use the root `environment.yml`).
+- The combined environment pins VEF-related packages (e.g., `pyvista=0.44.*`, `vtk=9.3.*`) to avoid pip/conda conflicts.

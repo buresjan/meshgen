@@ -8,19 +8,19 @@ dependencies:
   - trimesh
   - gmsh
   - mayavi
-  - vtk
+  - vtk=9.3.*
   - pyqt
   - tqdm
-  - scikit-learn
-  - matplotlib
+  - scikit-learn=1.6.*
+  - matplotlib=3.9.*
   - pillow
   - pooch
   - scooby
   - typing-extensions
   - requests
-  - pyvista
-  - dash
-  - plotly
+  - pyvista=0.44.*
+  - dash>=2.17.1,<3.0.0
+  - plotly>=5.23.0,<6.0.0
   - pip
   - pip:
       - -e .

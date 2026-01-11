@@ -122,6 +122,7 @@ Notes:
 - For best STL results, ensure watertightness. Minor repairs are attempted automatically.
 - Installation uses `pyproject.toml`; use `pip install -e .` (pip ≥ 21) to get an editable checkout.
 - If you plan to use the `vascular_encoding_framework` submodule, install it in the same environment (`pip install -e vascular_encoding_framework` or use the root `environment.yml`).
+- The combined environment pins VEF-related packages (e.g., `pyvista=0.44.*`, `vtk=9.3.*`) to avoid pip/conda conflicts.
 
 ### 4) Minimal STL voxelization with Mayavi only
 
