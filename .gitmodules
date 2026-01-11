@@ -1,0 +1,3 @@
+[submodule "vascular_encoding_framework"]
+	path = vascular_encoding_framework
+	url = https://github.com/buresjan/vascular_encoding_framework.git
