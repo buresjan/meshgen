@@ -121,6 +121,7 @@ Notes:
 - The current implementation ensures equivalence by computing a single global voxelization; `split` does not change the output or parallelize the voxelization itself.
 - For best STL results, ensure watertightness. Minor repairs are attempted automatically.
 - Installation uses `pyproject.toml`; use `pip install -e .` (pip ≥ 21) to get an editable checkout.
+- If you plan to use the `vascular_encoding_framework` submodule, install it in the same environment (`pip install -e vascular_encoding_framework` or use the root `environment.yml`).
 
 ### 4) Minimal STL voxelization with Mayavi only
 

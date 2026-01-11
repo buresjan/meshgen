@@ -58,8 +58,9 @@ conda env create -f environment.yml
 conda activate meshgen
 ```
 
-The environment installs all runtime deps (numpy, scipy, trimesh, gmsh, mayavi, vtk, pyqt, tqdm) and
-installs this repo in editable mode for development.
+The environment installs all runtime deps for meshgen plus the `vascular_encoding_framework` submodule
+(pyvista, scikit-learn, matplotlib, pillow, requests, dash, plotly, etc.) and installs both repos in
+editable mode for development.
 
 Notes:
 - If you are on a headless server and do not need visualization, you can remove `mayavi`, `vtk`, and `pyqt`
@@ -71,13 +72,13 @@ Notes:
 If you already have a working Python environment and do not need Mayavi/VTK from Conda:
 
 ```bash
-pip install -e .
+pip install -e . -e vascular_encoding_framework
 ```
 
 You will also need to install the runtime dependencies yourself:
 
 ```bash
-pip install numpy scipy trimesh gmsh mayavi tqdm
+pip install numpy scipy trimesh gmsh mayavi tqdm vtk pyqt pyvista scikit-learn matplotlib pillow pooch scooby typing-extensions requests dash plotly
 ```
 
 If you only rely on the STL route you may skip installing `gmsh`.
@@ -85,6 +86,7 @@ If you only rely on the STL route you may skip installing `gmsh`.
 Notes:
 - The project now ships a `pyproject.toml`; ensure you are using `pip >= 21` so editable installs work with the PEP 517 backend.
 - Add `.[dev]` to pick up optional development dependencies (e.g., `pip install -e .[dev]` for Black).
+- If you do not need the `vascular_encoding_framework` submodule, remove its editable install and deps.
 
 ## Usage
 

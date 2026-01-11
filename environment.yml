@@ -11,6 +11,17 @@ dependencies:
   - vtk
   - pyqt
   - tqdm
+  - scikit-learn
+  - matplotlib
+  - pillow
+  - pooch
+  - scooby
+  - typing-extensions
+  - requests
+  - pyvista
+  - dash
+  - plotly
   - pip
   - pip:
       - -e .
+      - -e vascular_encoding_framework

@@ -85,3 +85,4 @@ print("Boxed STL:", boxed)
 - Use absolute or relative STL paths in `box_stl`; bare names resolve to `meshgen/stl_models/<name>.stl`.
 - Callers must ensure Gmsh is installed before using `gmsh_surface` or `box_stl`; otherwise a descriptive `RuntimeError` is raised.
 - Template and STL assets are bundled via the package-data configuration in `pyproject.toml`; editable installs require `pip >= 21` (PEP 517).
+- If you plan to use the `vascular_encoding_framework` submodule, install it in the same environment (`pip install -e vascular_encoding_framework` or use the root `environment.yml`).
