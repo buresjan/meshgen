@@ -71,10 +71,18 @@ Notes:
 
 ### Option B: Pip-only install
 
-If you already have a working Python environment and do not need Mayavi/VTK from Conda:
+If you already have a working Python environment:
 
 ```bash
-pip install -e . -e vascular_encoding_framework
+pip install -e .
+# with Mayavi:
+pip install -e ".[viz]"
+```
+
+If you also need the `vascular_encoding_framework` submodule, install it in editable mode as well:
+
+```bash
+pip install -e vascular_encoding_framework
 ```
 
 You will also need to install the runtime dependencies yourself:
